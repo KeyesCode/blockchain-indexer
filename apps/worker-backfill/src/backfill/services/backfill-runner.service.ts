@@ -6,10 +6,13 @@ import { BlockEntity } from '@app/db/entities/block.entity';
 import { TransactionEntity } from '@app/db/entities/transaction.entity';
 import { TransactionReceiptEntity } from '@app/db/entities/transaction-receipt.entity';
 import { LogEntity } from '@app/db/entities/log.entity';
+import { TokenTransferEntity } from '@app/db/entities/token-transfer.entity';
 import { BackfillJobEntity, BackfillJobStatus } from '@app/db/entities/backfill-job.entity';
 import { BackfillJobService } from './backfill-job.service';
 import { normalizeAddress, normalizeHash, MetricsService } from '@app/common';
 import { withRetry } from '@app/common/utils/retry';
+import { ERC20_TRANSFER_TOPIC } from '@app/abi';
+import { topicToAddress } from '@app/common';
 
 @Injectable()
 export class BackfillRunnerService {
@@ -31,6 +34,9 @@ export class BackfillRunnerService {
 
     @InjectRepository(LogEntity)
     private readonly logRepo: Repository<LogEntity>,
+
+    @InjectRepository(TokenTransferEntity)
+    private readonly transferRepo: Repository<TokenTransferEntity>,
 
     private readonly jobService: BackfillJobService,
 
@@ -186,6 +192,42 @@ export class BackfillRunnerService {
             )
             .orIgnore()
             .execute();
+
+          // Decode ERC-20 transfers inline from the receipt logs
+          const transferInserts: Partial<TokenTransferEntity>[] = [];
+          for (const log of receipt.logs) {
+            const topic0 = log.topics[0]?.toLowerCase() ?? null;
+            const topic1 = log.topics[1]?.toLowerCase() ?? null;
+            const topic2 = log.topics[2]?.toLowerCase() ?? null;
+            const topic3 = log.topics[3]?.toLowerCase() ?? null;
+
+            // ERC-20 Transfer: 3 topics (topic0 + 2 indexed), value in data
+            if (topic0 === ERC20_TRANSFER_TOPIC && topic1 && topic2 && !topic3) {
+              try {
+                transferInserts.push({
+                  transactionHash: normalizeHash(log.transactionHash),
+                  blockNumber: String(log.blockNumber),
+                  logIndex: log.logIndex,
+                  tokenAddress: normalizeAddress(log.address),
+                  fromAddress: topicToAddress(topic1),
+                  toAddress: topicToAddress(topic2),
+                  amountRaw: BigInt(log.data).toString(),
+                });
+              } catch {
+                // Skip logs with unparseable data
+              }
+            }
+          }
+
+          if (transferInserts.length > 0) {
+            await this.transferRepo
+              .createQueryBuilder()
+              .insert()
+              .into(TokenTransferEntity)
+              .values(transferInserts)
+              .orIgnore()
+              .execute();
+          }
         }
       }
     }
