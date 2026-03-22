@@ -124,7 +124,7 @@ export class BlockSyncService {
       await this.txRepo
         .createQueryBuilder()
         .insert()
-        .into('transactions')
+        .into(TransactionEntity)
         .values(
           block.transactions.map((tx) => ({
             hash: normalizeHash(tx.hash),

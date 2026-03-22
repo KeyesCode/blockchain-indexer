@@ -161,7 +161,7 @@ export class BackfillRunnerService {
       await this.txRepo
         .createQueryBuilder()
         .insert()
-        .into('transactions')
+        .into(TransactionEntity)
         .values(
           block.transactions.map((tx) => ({
             hash: normalizeHash(tx.hash),
@@ -192,7 +192,7 @@ export class BackfillRunnerService {
         await this.receiptRepo
           .createQueryBuilder()
           .insert()
-          .into('transaction_receipts')
+          .into(TransactionReceiptEntity)
           .values({
             transactionHash: normalizeHash(receipt.transactionHash),
             blockNumber: String(receipt.blockNumber),
