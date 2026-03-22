@@ -56,11 +56,10 @@ export class SearchController {
       }
     }
 
-    // Block number
-    const blockNumber = Number(q);
-    if (!isNaN(blockNumber) && blockNumber >= 0) {
+    // Block number (only if it looks like a plain number, not a hex string)
+    if (!q.startsWith('0x') && /^\d+$/.test(q)) {
       const block = await this.blockRepo.findOne({
-        where: { number: String(blockNumber) },
+        where: { number: q },
       });
       if (block) {
         return { type: 'block', result: block };

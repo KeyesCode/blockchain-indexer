@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
+import { DataSource } from 'typeorm';
 import { BlockEntity } from '@app/db/entities/block.entity';
 import { TransactionEntity } from '@app/db/entities/transaction.entity';
 import { TransactionReceiptEntity } from '@app/db/entities/transaction-receipt.entity';
@@ -87,7 +88,7 @@ export async function createTestModule(
  * Clears all rows from all entity tables.
  */
 export async function clearDatabase(module: TestingModule): Promise<void> {
-  const dataSource = module.get('DataSource') as any;
+  const dataSource = module.get(DataSource);
   // Order matters due to foreign keys
   await dataSource.query('DELETE FROM "token_transfers"');
   await dataSource.query('DELETE FROM "logs"');

@@ -19,6 +19,16 @@ export class TestChainProvider implements ChainProvider {
     this.generateBlocks(1, this.latestBlock);
   }
 
+  /**
+   * Reset to clean state — regenerate all blocks with correct parent hashes.
+   */
+  reset(): void {
+    this.blocks.clear();
+    this.receipts.clear();
+    this.latestBlock = 100;
+    this.generateBlocks(1, this.latestBlock);
+  }
+
   setLatestBlock(n: number): void {
     if (n > this.latestBlock) {
       this.generateBlocks(this.latestBlock + 1, n);
@@ -156,7 +166,7 @@ export class TestChainProvider implements ChainProvider {
     const to = `0x${(2000 + txIndex).toString(16).padStart(40, '0')}`;
 
     return {
-      hash: `0xt${blockNumber.toString(16).padStart(4, '0')}${txIndex.toString(16).padStart(58, '0')}`,
+      hash: `0x${blockNumber.toString(16).padStart(4, '0')}${txIndex.toString(16).padStart(60, '0')}`,
       blockNumber,
       transactionIndex: txIndex,
       from,
