@@ -46,13 +46,8 @@ export class SearchService {
         return { type: 'token', result: token };
       }
 
-      const hasTxs = await this.txRepo.findOne({
-        where: [{ fromAddress: q }, { toAddress: q }],
-      });
-
-      if (hasTxs) {
-        return { type: 'address', result: { address: q } };
-      }
+      // Any valid-length address resolves — the address page handles empty state
+      return { type: 'address', result: { address: q } };
     }
 
     // Block number (only plain digits)

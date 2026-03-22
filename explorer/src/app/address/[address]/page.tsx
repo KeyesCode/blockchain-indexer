@@ -97,6 +97,12 @@ export default async function AddressPage({
         )}
       </div>
 
+      {overview.transactionCount === 0 && overview.transferCount === 0 && (
+        <div className="bg-gray-900 border border-yellow-800/50 rounded-lg p-4 text-sm text-gray-400">
+          No indexed activity found for this address. It may be outside the currently indexed block range.
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-800 overflow-x-auto">
         {tabs.map((t) => (
