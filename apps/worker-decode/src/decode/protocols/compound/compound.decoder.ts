@@ -53,7 +53,7 @@ export class CompoundDecoder implements ProtocolDecoder, OnModuleInit {
         const event = this.decodeLog(log);
         if (event) inserts.push(event);
       } catch {
-        this.logger.warn(`Failed to decode Compound event ${log.transactionHash}:${log.logIndex}`);
+        this.logger.debug(`Skipping non-Compound event ${log.transactionHash}:${log.logIndex}`);
       }
     }
 
@@ -116,11 +116,18 @@ export class CompoundDecoder implements ProtocolDecoder, OnModuleInit {
     }
   }
 
+  /** Returns byte length of hex data string (e.g. "0x..." → number of bytes) */
+  private dataBytes(data: string): number {
+    return data.startsWith('0x') ? (data.length - 2) / 2 : data.length / 2;
+  }
+
   /**
    * Mint(address minter, uint256 mintAmount, uint256 mintTokens)
    * All in data, no indexed params beyond topic0.
+   * Expected data: 3 slots = 96 bytes.
    */
-  private decodeMint(log: LogEntity, base: any): Partial<LendingEventEntity> {
+  private decodeMint(log: LogEntity, base: any): Partial<LendingEventEntity> | null {
+    if (this.dataBytes(log.data) < 96) return null; // not a Compound Mint
     const decoded = AbiCoder.defaultAbiCoder().decode(
       ['address', 'uint256', 'uint256'],
       log.data,
@@ -129,14 +136,16 @@ export class CompoundDecoder implements ProtocolDecoder, OnModuleInit {
       ...base,
       eventType: 'DEPOSIT',
       userAddress: (decoded[0] as string).toLowerCase(),
-      amount: decoded[1].toString(), // mintAmount (underlying)
+      amount: decoded[1].toString(),
     };
   }
 
   /**
    * Redeem(address redeemer, uint256 redeemAmount, uint256 redeemTokens)
+   * Expected data: 3 slots = 96 bytes.
    */
-  private decodeRedeem(log: LogEntity, base: any): Partial<LendingEventEntity> {
+  private decodeRedeem(log: LogEntity, base: any): Partial<LendingEventEntity> | null {
+    if (this.dataBytes(log.data) < 96) return null;
     const decoded = AbiCoder.defaultAbiCoder().decode(
       ['address', 'uint256', 'uint256'],
       log.data,
@@ -145,14 +154,16 @@ export class CompoundDecoder implements ProtocolDecoder, OnModuleInit {
       ...base,
       eventType: 'WITHDRAW',
       userAddress: (decoded[0] as string).toLowerCase(),
-      amount: decoded[1].toString(), // redeemAmount (underlying)
+      amount: decoded[1].toString(),
     };
   }
 
   /**
    * Borrow(address borrower, uint256 borrowAmount, uint256 accountBorrows, uint256 totalBorrows)
+   * Expected data: 4 slots = 128 bytes.
    */
-  private decodeBorrow(log: LogEntity, base: any): Partial<LendingEventEntity> {
+  private decodeBorrow(log: LogEntity, base: any): Partial<LendingEventEntity> | null {
+    if (this.dataBytes(log.data) < 128) return null;
     const decoded = AbiCoder.defaultAbiCoder().decode(
       ['address', 'uint256', 'uint256', 'uint256'],
       log.data,
@@ -161,14 +172,16 @@ export class CompoundDecoder implements ProtocolDecoder, OnModuleInit {
       ...base,
       eventType: 'BORROW',
       userAddress: (decoded[0] as string).toLowerCase(),
-      amount: decoded[1].toString(), // borrowAmount
+      amount: decoded[1].toString(),
     };
   }
 
   /**
    * RepayBorrow(address payer, address borrower, uint256 repayAmount, uint256 accountBorrows, uint256 totalBorrows)
+   * Expected data: 5 slots = 160 bytes.
    */
-  private decodeRepay(log: LogEntity, base: any): Partial<LendingEventEntity> {
+  private decodeRepay(log: LogEntity, base: any): Partial<LendingEventEntity> | null {
+    if (this.dataBytes(log.data) < 160) return null;
     const decoded = AbiCoder.defaultAbiCoder().decode(
       ['address', 'address', 'uint256', 'uint256', 'uint256'],
       log.data,
@@ -176,16 +189,18 @@ export class CompoundDecoder implements ProtocolDecoder, OnModuleInit {
     return {
       ...base,
       eventType: 'REPAY',
-      userAddress: (decoded[1] as string).toLowerCase(), // borrower
-      onBehalfOf: (decoded[0] as string).toLowerCase(), // payer
-      amount: decoded[2].toString(), // repayAmount
+      userAddress: (decoded[1] as string).toLowerCase(),
+      onBehalfOf: (decoded[0] as string).toLowerCase(),
+      amount: decoded[2].toString(),
     };
   }
 
   /**
    * LiquidateBorrow(address liquidator, address borrower, uint256 repayAmount, address cTokenCollateral, uint256 seizeTokens)
+   * Expected data: 5 slots = 160 bytes.
    */
-  private decodeLiquidate(log: LogEntity, base: any): Partial<LendingEventEntity> {
+  private decodeLiquidate(log: LogEntity, base: any): Partial<LendingEventEntity> | null {
+    if (this.dataBytes(log.data) < 160) return null;
     const decoded = AbiCoder.defaultAbiCoder().decode(
       ['address', 'address', 'uint256', 'address', 'uint256'],
       log.data,
@@ -194,11 +209,11 @@ export class CompoundDecoder implements ProtocolDecoder, OnModuleInit {
       ...base,
       eventType: 'LIQUIDATION',
       liquidatorAddress: (decoded[0] as string).toLowerCase(),
-      userAddress: (decoded[1] as string).toLowerCase(), // borrower
-      amount: decoded[2].toString(), // repayAmount
+      userAddress: (decoded[1] as string).toLowerCase(),
+      amount: decoded[2].toString(),
       debtToCover: decoded[2].toString(),
-      collateralAsset: (decoded[3] as string).toLowerCase(), // cTokenCollateral
-      liquidatedCollateral: decoded[4].toString(), // seizeTokens
+      collateralAsset: (decoded[3] as string).toLowerCase(),
+      liquidatedCollateral: decoded[4].toString(),
     };
   }
 }
