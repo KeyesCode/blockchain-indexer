@@ -10,6 +10,9 @@ import { TokenTransferEntity } from '@app/db/entities/token-transfer.entity';
 import { NftTransferEntity } from '@app/db/entities/nft-transfer.entity';
 import { Erc721OwnershipEntity } from '@app/db/entities/erc721-ownership.entity';
 import { Erc1155BalanceEntity } from '@app/db/entities/erc1155-balance.entity';
+import { DexSwapEntity } from '@app/db/entities/dex-swap.entity';
+import { DexPairEntity } from '@app/db/entities/dex-pair.entity';
+import { ProtocolContractEntity } from '@app/db/entities/protocol-contract.entity';
 import { BackfillJobEntity, BackfillJobStatus } from '@app/db/entities/backfill-job.entity';
 import { BackfillJobService } from './backfill-job.service';
 import { normalizeAddress, normalizeHash, MetricsService } from '@app/common';
@@ -23,6 +26,14 @@ import { AbiCoder } from 'ethers';
 import { topicToAddress } from '@app/common';
 import { SummaryService } from '@app/db/services/summary.service';
 import { PartitionManagerService } from '@app/db/services/partition-manager.service';
+import { Contract, JsonRpcProvider } from 'ethers';
+
+const UNISWAP_V2_SWAP_TOPIC = '0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822';
+const UNISWAP_V2_PAIR_ABI = [
+  'function token0() view returns (address)',
+  'function token1() view returns (address)',
+  'function factory() view returns (address)',
+];
 
 @Injectable()
 export class BackfillRunnerService {
@@ -64,7 +75,23 @@ export class BackfillRunnerService {
     private readonly summaryService: SummaryService,
 
     private readonly partitionManager: PartitionManagerService,
-  ) {}
+
+    @InjectRepository(DexSwapEntity)
+    private readonly swapRepo: Repository<DexSwapEntity>,
+
+    @InjectRepository(DexPairEntity)
+    private readonly pairRepo: Repository<DexPairEntity>,
+
+    @InjectRepository(ProtocolContractEntity)
+    private readonly protocolContractRepo: Repository<ProtocolContractEntity>,
+  ) {
+    const rpcUrl = process.env.CHAIN_RPC_URL;
+    this.rpcProvider = rpcUrl ? new JsonRpcProvider(rpcUrl) : null;
+  }
+
+  private readonly rpcProvider: JsonRpcProvider | null;
+  private readonly pairCache = new Map<string, { token0: string; token1: string }>();
+  private readonly nonPairCache = new Set<string>();
 
   async processNextJob(): Promise<boolean> {
     if (this.running) return false;
@@ -433,7 +460,104 @@ export class BackfillRunnerService {
             }
           }
         }
+
+        // ── Protocol decoding: Uniswap V2 Swaps ──
+        for (const log of receipt.logs) {
+          const st0 = log.topics[0]?.toLowerCase() ?? null;
+          if (st0 !== UNISWAP_V2_SWAP_TOPIC) continue;
+          if (!log.topics[1] || !log.topics[2]) continue;
+
+          const pair = await this.getPairInfo(normalizeAddress(log.address), blockNumber);
+          if (!pair) continue;
+
+          try {
+            const decoded = AbiCoder.defaultAbiCoder().decode(
+              ['uint256', 'uint256', 'uint256', 'uint256'],
+              log.data,
+            );
+
+            await this.swapRepo
+              .createQueryBuilder()
+              .insert()
+              .into(DexSwapEntity)
+              .values({
+                protocolName: 'UNISWAP_V2',
+                pairAddress: normalizeAddress(log.address),
+                transactionHash: normalizeHash(log.transactionHash),
+                blockNumber: String(log.blockNumber),
+                logIndex: log.logIndex,
+                senderAddress: topicToAddress(log.topics[1]),
+                toAddress: topicToAddress(log.topics[2]),
+                token0Address: pair.token0,
+                token1Address: pair.token1,
+                amount0In: decoded[0].toString(),
+                amount1In: decoded[1].toString(),
+                amount0Out: decoded[2].toString(),
+                amount1Out: decoded[3].toString(),
+              })
+              .orIgnore()
+              .execute();
+          } catch {
+            // Skip unparseable swap logs
+          }
+        }
       }
+    }
+  }
+
+  /**
+   * Get token0/token1 for a Uniswap V2 pair.
+   * Cache → DB → RPC probe.
+   */
+  private async getPairInfo(
+    pairAddress: string,
+    blockNumber: number,
+  ): Promise<{ token0: string; token1: string } | null> {
+    const cached = this.pairCache.get(pairAddress);
+    if (cached) return cached;
+    if (this.nonPairCache.has(pairAddress)) return null;
+
+    const existing = await this.pairRepo.findOne({ where: { pairAddress } });
+    if (existing) {
+      const info = { token0: existing.token0Address, token1: existing.token1Address };
+      this.pairCache.set(pairAddress, info);
+      return info;
+    }
+
+    if (!this.rpcProvider) {
+      this.nonPairCache.add(pairAddress);
+      return null;
+    }
+
+    try {
+      const contract = new Contract(pairAddress, UNISWAP_V2_PAIR_ABI, this.rpcProvider);
+      const [token0, token1] = await Promise.all([
+        contract.token0() as Promise<string>,
+        contract.token1() as Promise<string>,
+      ]);
+      const t0 = token0.toLowerCase();
+      const t1 = token1.toLowerCase();
+
+      let factory: string | null = null;
+      try { factory = ((await contract.factory()) as string).toLowerCase(); } catch {}
+
+      await this.pairRepo.upsert({
+        pairAddress, protocolName: 'UNISWAP_V2', factoryAddress: factory,
+        token0Address: t0, token1Address: t1, discoveredAtBlock: String(blockNumber),
+      }, ['pairAddress']);
+
+      await this.protocolContractRepo.upsert({
+        address: pairAddress, protocolName: 'UNISWAP_V2', contractType: 'PAIR',
+        metadataJson: { token0: t0, token1: t1, factory } as any,
+        discoveredAtBlock: String(blockNumber),
+      }, ['address']);
+
+      const info = { token0: t0, token1: t1 };
+      this.pairCache.set(pairAddress, info);
+      return info;
+    } catch {
+      this.nonPairCache.add(pairAddress);
+      return null;
     }
   }
 }
