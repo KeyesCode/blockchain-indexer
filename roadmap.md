@@ -213,9 +213,11 @@ Separate:
 - [x] API: GET /protocols/lending/events?protocolName=&eventType=&assetAddress= (cursor paginated)
 - [x] API: GET /addresses/:address/lending (cursor paginated)
 
-### Lending: Compound — NEXT
-- [ ] Mint / Redeem
-- [ ] Borrow / Repay
+### Lending: Compound — COMPLETE
+- [x] CompoundDecoder — Mint (→DEPOSIT), Redeem (→WITHDRAW), Borrow, RepayBorrow, LiquidateBorrow
+- [x] Reuses lending_events table with protocol_name = COMPOUND
+- [x] Compound events use non-indexed params (all in data) — different decode pattern from Aave
+- [x] Self-registering, backfill-integrated, reorg-safe
 
 ### ERC-4626 Vaults
 - [ ] Deposit / Withdraw
@@ -317,6 +319,6 @@ Do NOT include:
 3. ~~Protocol framework + Uniswap V2 (Phase 3)~~ DONE
 4. ~~ERC-20 Approvals + Uniswap V3~~ DONE
 5. ~~NFT marketplaces (Seaport + Blur)~~ DONE
-6. ~~Lending: Aave~~ DONE
-7. Bridges
+6. ~~Lending: Aave + Compound~~ DONE
+7. **ERC-4626 Vaults** ← NEXT
 8. Advanced protocols

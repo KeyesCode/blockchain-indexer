@@ -42,6 +42,7 @@ import { UniswapV3Decoder } from '../apps/worker-decode/src/decode/protocols/uni
 import { SeaportDecoder } from '../apps/worker-decode/src/decode/protocols/seaport/seaport.decoder';
 import { BlurDecoder } from '../apps/worker-decode/src/decode/protocols/blur/blur.decoder';
 import { AaveDecoder } from '../apps/worker-decode/src/decode/protocols/aave/aave.decoder';
+import { CompoundDecoder } from '../apps/worker-decode/src/decode/protocols/compound/compound.decoder';
 import { BlocksController } from '../apps/api/src/blocks/blocks.controller';
 import { BlocksService } from '../apps/api/src/blocks/blocks.service';
 import { TransactionsController } from '../apps/api/src/transactions/transactions.controller';
@@ -130,6 +131,7 @@ describe('Phase 1: End-to-end system validation', () => {
         SeaportDecoder,
         BlurDecoder,
         AaveDecoder,
+        CompoundDecoder,
         SummaryService,
         PartitionManagerService,
         // API services
@@ -193,6 +195,7 @@ describe('Phase 1: End-to-end system validation', () => {
     module.get(SeaportDecoder).onModuleInit();
     module.get(BlurDecoder).onModuleInit();
     module.get(AaveDecoder).onModuleInit();
+    module.get(CompoundDecoder).onModuleInit();
 
     blocksController = module.get(BlocksController);
     transactionsController = module.get(TransactionsController);
@@ -1789,8 +1792,56 @@ describe('Phase 1: End-to-end system validation', () => {
 
       await reorgDetectionService.rollback(8, 9);
 
-      const after = await lendingRepo.count();
-      expect(after).toBe(0); // Only block 9 had Aave events
+      const after = await lendingRepo.count({ where: { protocolName: 'AAVE' } });
+      expect(after).toBe(0); // Block 9 had Aave events, rolled back
+
+      // Compound events on block 8 should survive
+      const compoundAfter = await lendingRepo.count({ where: { protocolName: 'COMPOUND' } });
+      expect(compoundAfter).toBeGreaterThan(0);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────
+  // 20. Compound lending decoding
+  // ────────────────────────────────────────────────────────────────
+  describe('Compound lending decoding', () => {
+    beforeEach(async () => {
+      // Block 8 has Compound Mint log
+      await blockSyncService.syncNextBatch(9);
+      for (let bn = 1; bn <= 9; bn++) {
+        await receiptSyncService.syncReceiptsForBlock(bn);
+      }
+    });
+
+    it('should decode Compound Mint events into lending_events as DEPOSIT', async () => {
+      for (let bn = 1; bn <= 9; bn++) {
+        await protocolRegistry.decodeBlock(bn);
+      }
+
+      const compoundEvents = await lendingRepo.find({
+        where: { protocolName: 'COMPOUND' },
+      });
+      expect(compoundEvents.length).toBeGreaterThan(0);
+
+      for (const event of compoundEvents) {
+        expect(event.protocolName).toBe('COMPOUND');
+        expect(event.eventType).toBe('DEPOSIT');
+        expect(event.assetAddress).toBe('0x39aa39c021dfbae8fac545936693ac917d5e7563'); // cUSDC
+        expect(event.userAddress).toMatch(/^0x[0-9a-f]{40}$/);
+        expect(BigInt(event.amount)).toBe(10000000000n);
+      }
+    });
+
+    it('should keep Aave and Compound events separate by protocol_name', async () => {
+      for (let bn = 1; bn <= 9; bn++) {
+        await protocolRegistry.decodeBlock(bn);
+      }
+
+      const aaveCount = await lendingRepo.count({ where: { protocolName: 'AAVE' } });
+      const compoundCount = await lendingRepo.count({ where: { protocolName: 'COMPOUND' } });
+
+      expect(aaveCount).toBeGreaterThan(0);
+      expect(compoundCount).toBeGreaterThan(0);
     });
   });
 });

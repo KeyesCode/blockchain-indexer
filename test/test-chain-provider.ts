@@ -15,6 +15,7 @@ const UNISWAP_V3_SWAP_TOPIC = '0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64f
 const SEAPORT_ORDER_FULFILLED_TOPIC = '0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9352c97c6cacdcb6f31';
 const BLUR_ORDERS_MATCHED_TOPIC = '0xccba862546b05c8c66e45ac1e0eb064e777f59aee70b88930f052da1829fcfd7';
 const AAVE_V2_DEPOSIT_TOPIC = '0xde6857219544bb5b7746f48ed30be6386fefc61b2f864cacf559893bf50fd951';
+const COMPOUND_MINT_TOPIC = '0x4c209b5fc8ad50758f13e2e1088ba56a560dff690a1c6fef26394f4c03821c4f';
 
 const BLUR_ORDER_TUPLE = 'tuple(address,uint8,address,address,uint256,uint256,address,uint256,uint256,uint256,tuple(uint16,address)[],uint256,bytes)';
 const BLUR_INPUT_TUPLE = 'tuple(uint8,uint256,uint256,uint256,bool,address,bytes)';
@@ -411,6 +412,28 @@ export class TestChainProvider implements ChainProvider {
         logIndex: logs.length,
         data: aaveData,
         topics: [AAVE_V2_DEPOSIT_TOPIC, reservePadded, onBehalfOfPadded, referralPadded],
+        removed: false,
+      });
+    }
+
+    // Compound Mint log on blocks divisible by 8, tx index 0
+    const hasCompoundMint = blockNumber % 8 === 0 && tx.transactionIndex === 0;
+    if (hasCompoundMint) {
+      const cUsdcAddress = '0x39aa39c021dfbae8fac545936693ac917d5e7563'; // cUSDC
+      // Mint(address minter, uint256 mintAmount, uint256 mintTokens) — all in data
+      const compoundData = AbiCoder.defaultAbiCoder().encode(
+        ['address', 'uint256', 'uint256'],
+        [tx.from, BigInt('10000000000'), BigInt('500000000000')], // 10000 USDC, 500000 cUSDC
+      );
+
+      logs.push({
+        address: cUsdcAddress,
+        blockNumber,
+        transactionHash: tx.hash,
+        transactionIndex: tx.transactionIndex,
+        logIndex: logs.length,
+        data: compoundData,
+        topics: [COMPOUND_MINT_TOPIC],
         removed: false,
       });
     }

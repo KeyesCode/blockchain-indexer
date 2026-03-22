@@ -30,6 +30,7 @@ import { UniswapV3Decoder } from './protocols/uniswap-v3/uniswap-v3.decoder';
 import { SeaportDecoder } from './protocols/seaport/seaport.decoder';
 import { BlurDecoder } from './protocols/blur/blur.decoder';
 import { AaveDecoder } from './protocols/aave/aave.decoder';
+import { CompoundDecoder } from './protocols/compound/compound.decoder';
 import { NftSaleEntity } from '@app/db/entities/nft-sale.entity';
 import { LendingEventEntity } from '@app/db/entities/lending-event.entity';
 
@@ -71,6 +72,7 @@ import { LendingEventEntity } from '@app/db/entities/lending-event.entity';
     SeaportDecoder,
     BlurDecoder,
     AaveDecoder,
+    CompoundDecoder,
   ],
   exports: [Erc20TransferDecoderService, NftTransferDecoderService, TokenMetadataService, NftMetadataService, ProtocolRegistryService],
 })
