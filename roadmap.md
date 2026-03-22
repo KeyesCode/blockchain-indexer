@@ -1,86 +1,118 @@
-Best long-term approach
+# ROADMAP.md
 
-Make this repo:
+## 📌 Project: Blockchain Indexer
 
-a reusable blockchain data platform
-with two layers:
+---
 
-1. Core indexer layer
+## 🧭 Vision
 
-Always present, generic, reusable:
+Build a reusable, production-grade blockchain indexing platform that provides:
 
-blocks
-transactions
-receipts
-logs
-ERC-20 transfers
-ERC-721 / ERC-1155 transfers
-metadata
-read models
-reconciliation
-API 2. Protocol decoder layer
+- Canonical on-chain data (source of truth)
+- Derived protocol-level insights (modular & extensible)
+- High-performance APIs for downstream applications
 
-Optional, pluggable, extensible:
+This repo is NOT an intelligence system (Argus).  
+This is the data foundation layer.
 
-Uniswap V2 swaps
-Uniswap V3 swaps
-liquidity add/remove
-bridge events
-staking events
-lending protocol events
-marketplace fills
-custom app-specific contracts
+---
 
-That gives you one repo, one ingestion pipeline, one database strategy, one replay model — but without hard-coding your whole platform around only one use case.
+## 🧱 Architecture Overview
 
-Why this is the right move
+### Core Principle
 
-If you keep protocol events out completely, every downstream project has to:
+Separate:
 
-re-read raw logs
-re-implement protocol decoders
-duplicate backfill/reorg logic
-duplicate reconciliation logic
+- Truth Layer (Core Indexer) → raw, canonical blockchain data
+- Derived Layer (Protocol Modules) → decoded, interpretable events
 
-That gets messy fast.
+---
 
-If you put protocol decoding directly into the main indexer with no boundaries, the repo becomes:
+## 🏗️ System Layers
 
-harder to maintain
-less reusable
-tightly coupled to whichever protocols you add first
+### 1. Core Indexer Layer (Always Present)
 
-So the sweet spot is:
+Responsible for:
 
-one repo, modular protocol packages
+- Block ingestion
+- Transactions & receipts
+- Logs
+- ERC-20 transfers
+- ERC-721 ownership
+- ERC-1155 balances
+- Data integrity & reconciliation
+- Read models
+- Public API
 
-What I’d recommend structurally
-Keep the core canonical
+---
 
-Your source-of-truth remains:
+### 2. Protocol Decoder Layer (Modular & Pluggable)
 
-chain data
-normalized token/NFT transfers
-maybe generic decoded logs later
-Add a protocol-events subsystem
+Responsible for:
 
-Examples:
+- DEX swaps
+- Lending activity
+- NFT marketplace events
+- Bridges / cross-chain
+- Vault interactions
+- Custom contracts
 
-protocols/uniswap-v2
-protocols/uniswap-v3
-protocols/aave
-protocols/curve
-protocols/opensea
+---
 
-Each module can define:
+## 🔑 Design Principles
 
-contract identification rules
-event signatures
-decode logic
-persistence tables
-rebuild/reconcile rules
-API endpoints if needed
-Example architecture
+### 1. Truth vs Derived Data
+
+Primary Truth (Immutable / Canonical):
+
+- Blocks
+- Transactions
+- Logs
+- Token transfers
+
+Derived Data (Rebuildable):
+
+- Swaps
+- Lending events
+- NFT sales
+- Bridge activity
+
+Protocol data must ALWAYS be:
+
+- Rebuildable
+- Reorg-safe
+- Decoupled from ingestion
+
+---
+
+### 2. Modularity
+
+- Protocol logic must NOT live in core ingestion
+- Each protocol = isolated module
+- No tight coupling between protocols
+
+---
+
+### 3. Replayability
+
+The system must support:
+
+- Backfills
+- Reorg handling
+- Full rebuilds
+
+---
+
+### 4. Performance First
+
+- Partition large tables early
+- Optimize queries continuously
+- Avoid unnecessary joins in APIs
+
+---
+
+## 📁 Suggested Project Structure
+
 apps/
 api/
 worker-ingest/
@@ -91,64 +123,66 @@ libs/
 db/
 shared/
 chain/
-nft/
 erc20/
+nft/
 protocols/
 common/
 uniswap-v2/
 uniswap-v3/
 aave/
-What belongs in a protocol module
 
-For Uniswap V2, for example:
+---
 
-Raw inputs already in your core:
-transaction
-logs
-token transfers
-contract addresses
-Protocol module adds:
-pair contract detection
-Swap event decoding
-token0/token1 lookup
-amount0In / amount1In / amount0Out / amount1Out
-derived “sold token A, bought token B”
-optional router / multi-hop attribution
-Output tables:
-dex_swaps
-maybe liquidity_events
-maybe protocol_contracts
-Important design rule
+## ⚙️ Core System Roadmap
 
-Do not treat protocol events as primary truth.
+---
 
-For example:
+### Phase 1 — Foundation (CURRENT)
 
-Primary truth
-raw logs
-canonical transfers
-Derived truth
-“Uniswap V2 swap”
-“wallet bought ETH with USDC”
+Status: In Progress / Near Completion
 
-That means protocol events should be:
+Goals:
 
-rebuildable from raw indexed data
-reorg-safe
-decoupled from ingestion truth
+- Reliable ingestion pipeline
+- Data correctness
+- Idempotency
+- Partitioning strategy
 
-Same pattern you already used for NFT read models.
+Work Items:
 
-What I would add next if you go this route
+- [x] Block ingestion pipeline
+- [x] Transactions + receipts
+- [x] Logs ingestion
+- [x] ERC-20 transfer decoding
+- [x] ERC-721 ownership model (erc721_ownership)
+- [x] ERC-1155 balances (erc1155_balances)
+- [x] Backfill system with checkpoints
+- [x] Idempotent processing
+- [x] Partitioned tables (block_number range)
+- [x] Partition manager service
 
-Not every protocol at once.
+Remaining:
 
-Start by designing a generic protocol decoder framework.
+- [ ] Query performance optimization (EXPLAIN ANALYZE)
+- [ ] Composite indexes:
+  - (from_address, block_number DESC)
+  - (to_address, block_number DESC)
+  - (token_address, block_number DESC)
+- [ ] Read model optimization
 
-Build:
-ProtocolDecoder interface
+---
 
-Something like:
+### Phase 2 — Protocol Framework (NEXT)
+
+Goals:
+
+- Introduce protocol decoding layer
+- Keep core indexer clean
+- Enable extensibility
+
+Work Items:
+
+- [ ] Create ProtocolDecoder interface
 
 interface ProtocolDecoder {
 protocol: string;
@@ -157,55 +191,224 @@ decodeBlock(blockNumber: number): Promise<void>;
 reconcile?(fromBlock?: number, toBlock?: number): Promise<void>;
 }
 
-Or better, block/tx scoped methods.
+- [ ] Build protocol registry system:
+  - protocol name
+  - contract addresses
+  - contract type
+  - chain id
 
-protocol_events registry table
+- [ ] Create protocol worker (worker-decode)
+- [ ] Add protocol event tables:
+  - dex_swaps
+  - lending_events
+  - nft_sales
+- [ ] Implement replay/rebuild support
 
-Stores:
+---
 
-protocol name
-contract address
-contract type
-chain id
-metadata
-protocol-specific tables
+### Phase 3 — Tier 1 Protocols (HIGH ROI)
 
-Examples:
+Goals:
+Cover ~80–90% of real-world use cases
 
-dex_swaps
-liquidity_positions
-lending_events
-My recommendation for your exact question
-Should the blockchain indexer have protocol events?
+---
 
-Yes, if you want this repo to be reusable across multiple projects.
+Uniswap V2:
 
-But implement them as:
+- [ ] Pair detection
+- [ ] Swap decoding
+- [ ] Mint / Burn events
+- [ ] Normalize trades
 
-modular derived decoders
-not as part of the minimal core indexing contract
+---
 
-That way this repo becomes:
+ERC-20 Approvals:
 
-Core blockchain indexer + optional protocol intelligence primitives
+- [ ] Approval event decoding
+- [ ] Allowance tracking
 
-not
+Enables:
 
-Argus inside the indexer
+- Wallet security insights
+- Token permission tracking
 
-Practical scope boundary
-Good to include here
-protocol event decoding
-protocol-specific normalized tables
-protocol contract registries
-replay/reorg-safe rebuilds
-generic protocol APIs
-Better to keep out
-alerting
-wallet intelligence scoring
-“smart money” labels
-trading strategy logic
-ML classifications
-cross-wallet behavior analysis
+---
 
-Those belong in Argus.
+Uniswap V3:
+
+- [ ] Swap decoding
+- [ ] Liquidity positions
+- [ ] Fee collection
+
+---
+
+NFT Marketplaces (Seaport / Blur):
+
+- [ ] Order fulfillment decoding
+- [ ] Sale normalization
+
+---
+
+### Phase 4 — Tier 2 Protocols
+
+Lending:
+
+Aave:
+
+- [ ] Deposit / Withdraw
+- [ ] Borrow / Repay
+- [ ] Liquidations
+
+Compound:
+
+- [ ] Mint / Redeem
+- [ ] Borrow / Repay
+
+---
+
+ERC-4626 Vaults:
+
+- [ ] Deposit / Withdraw
+
+---
+
+Bridges:
+
+- [ ] LayerZero
+- [ ] Hop
+- [ ] Stargate
+- [ ] Native L2 bridges
+
+Enables:
+
+- Cross-chain tracking
+- Flow analytics
+
+---
+
+### Phase 5 — Advanced Protocols
+
+Curve:
+
+- [ ] Swaps
+- [ ] Liquidity events
+
+Balancer:
+
+- [ ] Multi-token pool support
+
+GMX (Perps):
+
+- [ ] Position lifecycle
+- [ ] Liquidations
+
+ENS:
+
+- [ ] Name registration
+- [ ] Transfers
+
+---
+
+### Phase 6 — Meta / Infrastructure Protocols
+
+Aggregators:
+
+- [ ] 1inch
+- [ ] 0x
+- [ ] Paraswap
+
+Note: Requires multi-call reconstruction
+
+---
+
+Safe (Gnosis Safe):
+
+- [ ] Transaction execution
+- [ ] Module interactions
+
+---
+
+ERC-4337:
+
+- [ ] UserOperation decoding
+
+---
+
+## ⚠️ Out of Scope (Handled by Argus)
+
+Do NOT include:
+
+- Wallet intelligence scoring
+- Smart money detection
+- Alerting systems
+- Trading strategies
+- Machine learning models
+- Cross-wallet behavioral analysis
+
+---
+
+## 🔥 Implementation Strategy
+
+Start with event-driven protocols:
+
+Easy:
+
+- Uniswap V2
+- ERC-4626
+- Compound
+
+Medium:
+
+- Uniswap V3
+- Seaport
+- Aave
+
+Hard:
+
+- Aggregators
+- Router-based swaps
+
+---
+
+## 📈 Performance & Scaling Strategy
+
+- Partition by block_number
+- Pre-create partitions
+- Use composite indexes
+- Avoid full-table scans
+- Optimize read models
+- Minimize joins in hot paths
+
+---
+
+## 🏁 Final Execution Order
+
+1. Core stability (polish Phase 1)
+2. Protocol framework
+3. Uniswap V2 + Approvals
+4. Uniswap V3
+5. NFT marketplaces
+6. Lending
+7. Bridges
+8. Advanced protocols
+
+---
+
+## 🧠 Final Summary
+
+Build:
+
+Core Indexer + Modular Protocol Decoders
+
+NOT:
+
+Monolithic Intelligence System
+
+---
+
+This ensures:
+
+- Reusability across projects
+- Clean architecture
+- Scalable performance
+- Future-proof extensibility
