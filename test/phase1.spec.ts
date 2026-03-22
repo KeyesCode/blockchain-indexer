@@ -39,6 +39,7 @@ import { ProtocolRegistryService } from '../apps/worker-decode/src/decode/protoc
 import { UniswapV2Decoder } from '../apps/worker-decode/src/decode/protocols/uniswap-v2/uniswap-v2.decoder';
 import { UniswapV3Decoder } from '../apps/worker-decode/src/decode/protocols/uniswap-v3/uniswap-v3.decoder';
 import { SeaportDecoder } from '../apps/worker-decode/src/decode/protocols/seaport/seaport.decoder';
+import { BlurDecoder } from '../apps/worker-decode/src/decode/protocols/blur/blur.decoder';
 import { BlocksController } from '../apps/api/src/blocks/blocks.controller';
 import { BlocksService } from '../apps/api/src/blocks/blocks.service';
 import { TransactionsController } from '../apps/api/src/transactions/transactions.controller';
@@ -124,6 +125,7 @@ describe('Phase 1: End-to-end system validation', () => {
         UniswapV2Decoder,
         UniswapV3Decoder,
         SeaportDecoder,
+        BlurDecoder,
         SummaryService,
         PartitionManagerService,
         // API services
@@ -184,6 +186,7 @@ describe('Phase 1: End-to-end system validation', () => {
     module.get(UniswapV2Decoder).onModuleInit();
     module.get(UniswapV3Decoder).onModuleInit();
     module.get(SeaportDecoder).onModuleInit();
+    module.get(BlurDecoder).onModuleInit();
 
     blocksController = module.get(BlocksController);
     transactionsController = module.get(TransactionsController);
@@ -1675,6 +1678,53 @@ describe('Phase 1: End-to-end system validation', () => {
 
       const after = await saleRepo.count();
       expect(after).toBe(0); // Only block 11 had sales, and it was rolled back
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────
+  // 18. Blur NFT marketplace decoding
+  // ────────────────────────────────────────────────────────────────
+  describe('Blur NFT sale decoding', () => {
+    beforeEach(async () => {
+      // Block 13 has a Blur OrdersMatched log
+      await blockSyncService.syncNextBatch(13);
+      for (let bn = 1; bn <= 13; bn++) {
+        await receiptSyncService.syncReceiptsForBlock(bn);
+      }
+    });
+
+    it('should decode Blur OrdersMatched into nft_sales', async () => {
+      for (let bn = 1; bn <= 13; bn++) {
+        await protocolRegistry.decodeBlock(bn);
+      }
+
+      const blurSales = await saleRepo.find({
+        where: { protocolName: 'BLUR' },
+      });
+      expect(blurSales.length).toBeGreaterThan(0);
+
+      for (const sale of blurSales) {
+        expect(sale.protocolName).toBe('BLUR');
+        expect(sale.collectionAddress).toBe('0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d');
+        expect(sale.tokenStandard).toBe('ERC721');
+        expect(sale.sellerAddress).toMatch(/^0x[0-9a-f]{40}$/);
+        expect(sale.buyerAddress).toMatch(/^0x[0-9a-f]{40}$/);
+        expect(BigInt(sale.totalPrice)).toBe(BigInt('2000000000000000000'));
+        expect(BigInt(sale.quantity)).toBe(1n);
+      }
+    });
+
+    it('should keep Seaport and Blur sales separate by protocol_name', async () => {
+      // Need block 11 for Seaport and block 13 for Blur
+      for (let bn = 1; bn <= 13; bn++) {
+        await protocolRegistry.decodeBlock(bn);
+      }
+
+      const seaportCount = await saleRepo.count({ where: { protocolName: 'SEAPORT' } });
+      const blurCount = await saleRepo.count({ where: { protocolName: 'BLUR' } });
+
+      expect(seaportCount).toBeGreaterThan(0);
+      expect(blurCount).toBeGreaterThan(0);
     });
   });
 });

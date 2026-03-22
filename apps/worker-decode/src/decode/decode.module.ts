@@ -28,6 +28,7 @@ import { ProtocolRegistryService } from './protocols/protocol-registry.service';
 import { UniswapV2Decoder } from './protocols/uniswap-v2/uniswap-v2.decoder';
 import { UniswapV3Decoder } from './protocols/uniswap-v3/uniswap-v3.decoder';
 import { SeaportDecoder } from './protocols/seaport/seaport.decoder';
+import { BlurDecoder } from './protocols/blur/blur.decoder';
 import { NftSaleEntity } from '@app/db/entities/nft-sale.entity';
 
 @Module({
@@ -65,6 +66,7 @@ import { NftSaleEntity } from '@app/db/entities/nft-sale.entity';
     UniswapV2Decoder,
     UniswapV3Decoder,
     SeaportDecoder,
+    BlurDecoder,
   ],
   exports: [Erc20TransferDecoderService, NftTransferDecoderService, TokenMetadataService, NftMetadataService, ProtocolRegistryService],
 })

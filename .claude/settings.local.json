@@ -8,7 +8,8 @@
       "Bash(curl:*)",
       "WebFetch(domain:api.etherscan.io)",
       "Bash(grep -E \"\\\\.\\(md|MD\\)$\")",
-      "Bash(ls -la /Users/tannerkeyes/Documents/KeyesCode/blockchain-indexer/*.json)"
+      "Bash(ls -la /Users/tannerkeyes/Documents/KeyesCode/blockchain-indexer/*.json)",
+      "Bash(node:*)"
     ]
   }
 }

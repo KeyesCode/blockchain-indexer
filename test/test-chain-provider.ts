@@ -13,6 +13,10 @@ import { AbiCoder } from 'ethers';
 const UNISWAP_V2_SWAP_TOPIC = '0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822';
 const UNISWAP_V3_SWAP_TOPIC = '0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67';
 const SEAPORT_ORDER_FULFILLED_TOPIC = '0x9d9af8e38d66c62e2c12f0225249fd9d721c54b83f48d9352c97c6cacdcb6f31';
+const BLUR_ORDERS_MATCHED_TOPIC = '0xccba862546b05c8c66e45ac1e0eb064e777f59aee70b88930f052da1829fcfd7';
+
+const BLUR_ORDER_TUPLE = 'tuple(address,uint8,address,address,uint256,uint256,address,uint256,uint256,uint256,tuple(uint16,address)[],uint256,bytes)';
+const BLUR_INPUT_TUPLE = 'tuple(uint8,uint256,uint256,uint256,bool,address,bytes)';
 
 /**
  * A test chain provider that generates deterministic, realistic blockchain data.
@@ -342,6 +346,45 @@ export class TestChainProvider implements ChainProvider {
         logIndex: logs.length,
         data: seaportData,
         topics: [SEAPORT_ORDER_FULFILLED_TOPIC, offererPadded, zonePadded],
+        removed: false,
+      });
+    }
+
+    // Blur OrdersMatched log on blocks divisible by 13, tx index 0
+    const hasBlurSale = blockNumber % 13 === 0 && tx.transactionIndex === 0;
+    if (hasBlurSale) {
+      const blurExchange = '0x000000000000ad05ccc4f10045630fb830b95127';
+      const makerPadded = `0x000000000000000000000000${tx.from.slice(2)}`;
+      const takerPadded = `0x000000000000000000000000${tx.to!.slice(2)}`;
+      const nftCollection = '0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d';
+
+      const sellOrder = [
+        tx.from, 1, '0x0000000000000000000000000000000000000000',
+        nftCollection, BigInt(blockNumber * 100), BigInt(1),
+        '0x0000000000000000000000000000000000000000', BigInt('2000000000000000000'),
+        BigInt(0), BigInt(0), [], BigInt(0), '0x',
+      ];
+      const buyOrder = [
+        tx.to!, 0, '0x0000000000000000000000000000000000000000',
+        nftCollection, BigInt(blockNumber * 100), BigInt(1),
+        '0x0000000000000000000000000000000000000000', BigInt('2000000000000000000'),
+        BigInt(0), BigInt(0), [], BigInt(0), '0x',
+      ];
+      const blurInput = [0, BigInt(0), BigInt(0), BigInt(0), false, '0x0000000000000000000000000000000000000000', '0x'];
+
+      const blurData = AbiCoder.defaultAbiCoder().encode(
+        [BLUR_ORDER_TUPLE, BLUR_INPUT_TUPLE, BLUR_ORDER_TUPLE, BLUR_INPUT_TUPLE],
+        [sellOrder, blurInput, buyOrder, blurInput],
+      );
+
+      logs.push({
+        address: blurExchange,
+        blockNumber,
+        transactionHash: tx.hash,
+        transactionIndex: tx.transactionIndex,
+        logIndex: logs.length,
+        data: blurData,
+        topics: [BLUR_ORDERS_MATCHED_TOPIC, makerPadded, takerPadded],
         removed: false,
       });
     }
