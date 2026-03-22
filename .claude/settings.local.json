@@ -6,7 +6,9 @@
       "Bash(curl -s http://localhost:3000/admin/status)",
       "Bash(python3 -m json.tool)",
       "Bash(curl:*)",
-      "WebFetch(domain:api.etherscan.io)"
+      "WebFetch(domain:api.etherscan.io)",
+      "Bash(grep -E \"\\\\.\\(md|MD\\)$\")",
+      "Bash(ls -la /Users/tannerkeyes/Documents/KeyesCode/blockchain-indexer/*.json)"
     ]
   }
 }
