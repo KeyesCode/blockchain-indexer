@@ -1,8 +1,12 @@
 import { Controller, Get, Post, Body, Param, Patch, Query, ParseIntPipe } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { LimitQueryDto } from '../common/pagination';
 import { CreateBackfillJobDto } from './dto/create-backfill-job.dto';
+import { AdminStatusDto } from './dto/admin-status.dto';
+import { AdminMetricsDto } from './dto/admin-metrics.dto';
+import { BackfillJobDto } from './dto/backfill-job.dto';
+import { ReorgEventDto } from './dto/reorg-event.dto';
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -11,12 +15,14 @@ export class AdminController {
 
   @Get('status')
   @ApiOperation({ summary: 'Get indexer status overview' })
+  @ApiOkResponse({ type: AdminStatusDto })
   async getStatus() {
     return this.adminService.getStatus();
   }
 
   @Get('metrics')
   @ApiOperation({ summary: 'Get indexer metrics for monitoring' })
+  @ApiOkResponse({ type: AdminMetricsDto })
   async getMetrics() {
     return this.adminService.getMetrics();
   }
@@ -29,12 +35,14 @@ export class AdminController {
 
   @Get('backfill-jobs')
   @ApiOperation({ summary: 'List all backfill jobs' })
+  @ApiOkResponse({ type: [BackfillJobDto] })
   async getBackfillJobs() {
     return this.adminService.getBackfillJobs();
   }
 
   @Post('backfill-jobs')
   @ApiOperation({ summary: 'Create a new backfill job' })
+  @ApiCreatedResponse({ type: BackfillJobDto })
   async createBackfillJob(@Body() dto: CreateBackfillJobDto) {
     return this.adminService.createBackfillJob(
       dto.fromBlock,
@@ -57,6 +65,7 @@ export class AdminController {
 
   @Get('reorgs')
   @ApiOperation({ summary: 'Get recent chain reorganization events' })
+  @ApiOkResponse({ type: [ReorgEventDto] })
   async getReorgEvents(@Query() query: LimitQueryDto) {
     return this.adminService.getReorgEvents(query.limit!);
   }
