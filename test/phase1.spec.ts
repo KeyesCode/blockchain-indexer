@@ -14,6 +14,8 @@ import { Erc721OwnershipEntity } from '@app/db/entities/erc721-ownership.entity'
 import { Erc1155BalanceEntity } from '@app/db/entities/erc1155-balance.entity';
 import { AddressNftHoldingEntity } from '@app/db/entities/address-nft-holding.entity';
 import { NftContractStatsEntity } from '@app/db/entities/nft-contract-stats.entity';
+import { DexSwapEntity } from '@app/db/entities/dex-swap.entity';
+import { DexPairEntity } from '@app/db/entities/dex-pair.entity';
 import { BlockSyncService } from '../apps/worker-ingest/src/ingest/services/block-sync.service';
 import { ReceiptSyncService } from '../apps/worker-ingest/src/ingest/services/receipt-sync.service';
 import { CheckpointService } from '../apps/worker-ingest/src/ingest/services/checkpoint.service';
@@ -29,6 +31,8 @@ import { NftReadModelService } from '../libs/db/src/services/nft-read-model.serv
 import { NftReconciliationService } from '../libs/db/src/services/nft-reconciliation.service';
 import { SummaryService } from '../libs/db/src/services/summary.service';
 import { PartitionManagerService } from '../libs/db/src/services/partition-manager.service';
+import { ProtocolRegistryService } from '../apps/worker-decode/src/decode/protocols/protocol-registry.service';
+import { UniswapV2Decoder } from '../apps/worker-decode/src/decode/protocols/uniswap-v2/uniswap-v2.decoder';
 import { BlocksController } from '../apps/api/src/blocks/blocks.controller';
 import { BlocksService } from '../apps/api/src/blocks/blocks.service';
 import { TransactionsController } from '../apps/api/src/transactions/transactions.controller';
@@ -40,6 +44,7 @@ import { SearchService } from '../apps/api/src/search/search.service';
 import { TokensController } from '../apps/api/src/tokens/tokens.controller';
 import { TokensService } from '../apps/api/src/tokens/tokens.service';
 import { NftsService } from '../apps/api/src/nfts/nfts.service';
+import { ProtocolsService } from '../apps/api/src/protocols/protocols.service';
 import { createTestModule, clearDatabase, MockQueue } from './setup';
 import { TestChainProvider } from './test-chain-provider';
 import { MetricsService } from '@app/common/metrics/metrics.service';
@@ -62,6 +67,9 @@ describe('Phase 1: End-to-end system validation', () => {
   let erc1155Repo: Repository<Erc1155BalanceEntity>;
   let holdingRepo: Repository<AddressNftHoldingEntity>;
   let statsRepo: Repository<NftContractStatsEntity>;
+  let swapRepo: Repository<DexSwapEntity>;
+  let pairRepo: Repository<DexPairEntity>;
+  let protocolRegistry: ProtocolRegistryService;
 
   let blockSyncService: BlockSyncService;
   let receiptSyncService: ReceiptSyncService;
@@ -101,6 +109,8 @@ describe('Phase 1: End-to-end system validation', () => {
         NftMetadataService,
         NftReadModelService,
         NftReconciliationService,
+        ProtocolRegistryService,
+        UniswapV2Decoder,
         SummaryService,
         PartitionManagerService,
         // API services
@@ -110,6 +120,7 @@ describe('Phase 1: End-to-end system validation', () => {
         SearchService,
         TokensService,
         NftsService,
+        ProtocolsService,
       ],
       [
         BlocksController,
@@ -137,6 +148,8 @@ describe('Phase 1: End-to-end system validation', () => {
     erc1155Repo = module.get(getRepositoryToken(Erc1155BalanceEntity));
     holdingRepo = module.get(getRepositoryToken(AddressNftHoldingEntity));
     statsRepo = module.get(getRepositoryToken(NftContractStatsEntity));
+    swapRepo = module.get(getRepositoryToken(DexSwapEntity));
+    pairRepo = module.get(getRepositoryToken(DexPairEntity));
 
     blockSyncService = module.get(BlockSyncService);
     receiptSyncService = module.get(ReceiptSyncService);
@@ -148,6 +161,11 @@ describe('Phase 1: End-to-end system validation', () => {
     backfillRunnerService = module.get(BackfillRunnerService);
     metricsService = module.get(MetricsService);
     reconciliationService = module.get(NftReconciliationService);
+    protocolRegistry = module.get(ProtocolRegistryService);
+
+    // Manually trigger onModuleInit for the decoder (test module doesn't call lifecycle hooks)
+    const uniswapDecoder = module.get(UniswapV2Decoder);
+    uniswapDecoder.onModuleInit();
 
     blocksController = module.get(BlocksController);
     transactionsController = module.get(TransactionsController);
@@ -1278,6 +1296,127 @@ describe('Phase 1: End-to-end system validation', () => {
       // Data should still be corrupted
       const ownershipCount = await erc721Repo.count();
       expect(ownershipCount).toBe(0);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────
+  // 14. Protocol decoder framework + Uniswap V2
+  // ────────────────────────────────────────────────────────────────
+  describe('Protocol decoder framework', () => {
+    it('should register Uniswap V2 decoder in the registry', () => {
+      const decoders = protocolRegistry.getDecoders();
+      expect(decoders.length).toBeGreaterThan(0);
+      expect(decoders.some((d) => d.protocol === 'UNISWAP_V2')).toBe(true);
+    });
+
+    it('should decode Uniswap V2 Swap events into dex_swaps', async () => {
+      // Ingest blocks (blocks % 4 === 0 have Swap logs)
+      await blockSyncService.syncNextBatch(12);
+      for (let bn = 1; bn <= 12; bn++) {
+        await receiptSyncService.syncReceiptsForBlock(bn);
+      }
+
+      // Pre-populate pair info (no RPC in test env)
+      await pairRepo.upsert(
+        {
+          pairAddress: '0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc',
+          protocolName: 'UNISWAP_V2',
+          token0Address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+          token1Address: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
+          factoryAddress: null,
+          discoveredAtBlock: '1',
+        },
+        ['pairAddress'],
+      );
+
+      // Run protocol decoders
+      let totalDecoded = 0;
+      for (let bn = 1; bn <= 12; bn++) {
+        totalDecoded += await protocolRegistry.decodeBlock(bn);
+      }
+
+      const swaps = await swapRepo.find();
+      expect(swaps.length).toBe(totalDecoded);
+      expect(swaps.length).toBeGreaterThan(0);
+
+      // Verify swap fields
+      for (const swap of swaps) {
+        expect(swap.protocolName).toBe('UNISWAP_V2');
+        expect(swap.pairAddress).toBe('0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc');
+        expect(swap.token0Address).toBe('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48');
+        expect(swap.token1Address).toBe('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2');
+        expect(BigInt(swap.amount0In)).toBe(1000000n);
+        expect(BigInt(swap.amount1Out)).toBe(500000000000000000n);
+      }
+    });
+
+    it('should be idempotent — no duplicate swaps on re-decode', async () => {
+      await blockSyncService.syncNextBatch(8);
+      for (let bn = 1; bn <= 8; bn++) {
+        await receiptSyncService.syncReceiptsForBlock(bn);
+      }
+
+      await pairRepo.upsert(
+        {
+          pairAddress: '0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc',
+          protocolName: 'UNISWAP_V2',
+          token0Address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+          token1Address: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
+          factoryAddress: null,
+          discoveredAtBlock: '1',
+        },
+        ['pairAddress'],
+      );
+
+      for (let bn = 1; bn <= 8; bn++) {
+        await protocolRegistry.decodeBlock(bn);
+      }
+      const countBefore = await swapRepo.count();
+
+      for (let bn = 1; bn <= 8; bn++) {
+        await protocolRegistry.decodeBlock(bn);
+      }
+      const countAfter = await swapRepo.count();
+
+      expect(countAfter).toBe(countBefore);
+    });
+
+    it('should rollback protocol-derived data on reorg', async () => {
+      await blockSyncService.syncNextBatch(12);
+      for (let bn = 1; bn <= 12; bn++) {
+        await receiptSyncService.syncReceiptsForBlock(bn);
+      }
+
+      await pairRepo.upsert(
+        {
+          pairAddress: '0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc',
+          protocolName: 'UNISWAP_V2',
+          token0Address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+          token1Address: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
+          factoryAddress: null,
+          discoveredAtBlock: '1',
+        },
+        ['pairAddress'],
+      );
+
+      for (let bn = 1; bn <= 12; bn++) {
+        await protocolRegistry.decodeBlock(bn);
+      }
+
+      const swapsBefore = await swapRepo.count();
+      expect(swapsBefore).toBeGreaterThan(0);
+
+      // Rollback from block 5
+      await reorgDetectionService.rollback(4, 5);
+
+      const swapsAfter = await swapRepo.count();
+      expect(swapsAfter).toBeLessThan(swapsBefore);
+
+      // No swaps should remain for blocks >= 5
+      const remaining = await swapRepo.find();
+      for (const swap of remaining) {
+        expect(Number(swap.blockNumber)).toBeLessThan(5);
+      }
     });
   });
 });

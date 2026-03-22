@@ -10,6 +10,8 @@ import {
 } from '@app/abi';
 import { AbiCoder } from 'ethers';
 
+const UNISWAP_V2_SWAP_TOPIC = '0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822';
+
 /**
  * A test chain provider that generates deterministic, realistic blockchain data.
  * Every block has transactions, receipts, and logs (including ERC-20 transfers).
@@ -251,6 +253,29 @@ export class TestChainProvider implements ChainProvider {
         logIndex: logs.length,
         data: data1155,
         topics: [ERC1155_TRANSFER_SINGLE_TOPIC, operatorPadded, fromPadded1155, toPadded1155],
+        removed: false,
+      });
+    }
+
+    // Uniswap V2 Swap log on blocks divisible by 4, tx index 0
+    const hasSwap = blockNumber % 4 === 0 && tx.transactionIndex === 0;
+    if (hasSwap) {
+      const pairAddress = '0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc'; // USDC/WETH pair
+      const senderPadded = `0x000000000000000000000000${tx.from.slice(2)}`;
+      const toPadded = `0x000000000000000000000000${tx.to!.slice(2)}`;
+      const swapData = AbiCoder.defaultAbiCoder().encode(
+        ['uint256', 'uint256', 'uint256', 'uint256'],
+        [BigInt(1000000), BigInt(0), BigInt(0), BigInt('500000000000000000')],
+      );
+
+      logs.push({
+        address: pairAddress,
+        blockNumber,
+        transactionHash: tx.hash,
+        transactionIndex: tx.transactionIndex,
+        logIndex: logs.length,
+        data: swapData,
+        topics: [UNISWAP_V2_SWAP_TOPIC, senderPadded, toPadded],
         removed: false,
       });
     }

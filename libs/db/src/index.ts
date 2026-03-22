@@ -17,3 +17,6 @@ export * from './entities/nft-token-metadata.entity';
 export * from './entities/address-nft-holding.entity';
 export * from './entities/nft-contract-stats.entity';
 export * from './entities/contract-standard.entity';
+export * from './entities/protocol-contract.entity';
+export * from './entities/dex-pair.entity';
+export * from './entities/dex-swap.entity';

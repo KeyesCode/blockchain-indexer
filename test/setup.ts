@@ -20,6 +20,9 @@ import { NftTokenMetadataEntity } from '@app/db/entities/nft-token-metadata.enti
 import { AddressNftHoldingEntity } from '@app/db/entities/address-nft-holding.entity';
 import { NftContractStatsEntity } from '@app/db/entities/nft-contract-stats.entity';
 import { ContractStandardEntity } from '@app/db/entities/contract-standard.entity';
+import { ProtocolContractEntity } from '@app/db/entities/protocol-contract.entity';
+import { DexPairEntity } from '@app/db/entities/dex-pair.entity';
+import { DexSwapEntity } from '@app/db/entities/dex-swap.entity';
 import { CHAIN_PROVIDER } from '@app/chain-provider/chain-provider.interface';
 import { QUEUE_NAMES } from '@app/queue/queue.constants';
 import { MetricsService } from '@app/common/metrics/metrics.service';
@@ -44,6 +47,9 @@ export const ALL_ENTITIES = [
   AddressNftHoldingEntity,
   NftContractStatsEntity,
   ContractStandardEntity,
+  ProtocolContractEntity,
+  DexPairEntity,
+  DexSwapEntity,
 ];
 
 /**
@@ -131,6 +137,9 @@ export async function clearDatabase(module: TestingModule): Promise<void> {
   await dataSource.query('DELETE FROM "address_nft_holdings"');
   await dataSource.query('DELETE FROM "nft_contract_stats"');
   await dataSource.query('DELETE FROM "contract_standards"');
+  await dataSource.query('DELETE FROM "dex_swaps"');
+  await dataSource.query('DELETE FROM "dex_pairs"');
+  await dataSource.query('DELETE FROM "protocol_contracts"');
 }
 
 /**

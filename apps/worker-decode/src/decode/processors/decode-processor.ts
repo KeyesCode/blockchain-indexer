@@ -4,6 +4,7 @@ import { Job } from 'bull';
 import { QUEUE_NAMES } from '@app/queue';
 import { Erc20TransferDecoderService } from '../services/erc20-transfer-decoder.service';
 import { NftTransferDecoderService } from '../services/nft-transfer-decoder.service';
+import { ProtocolRegistryService } from '../protocols/protocol-registry.service';
 
 @Processor(QUEUE_NAMES.DECODE_LOGS)
 export class DecodeProcessor {
@@ -12,6 +13,7 @@ export class DecodeProcessor {
   constructor(
     private readonly erc20Decoder: Erc20TransferDecoderService,
     private readonly nftDecoder: NftTransferDecoderService,
+    private readonly protocolRegistry: ProtocolRegistryService,
   ) {}
 
   @Process('decode-block')
@@ -20,5 +22,6 @@ export class DecodeProcessor {
     this.logger.debug(`Decoding logs for block ${blockNumber}`);
     await this.erc20Decoder.decodeBlock(blockNumber);
     await this.nftDecoder.decodeBlock(blockNumber);
+    await this.protocolRegistry.decodeBlock(blockNumber);
   }
 }

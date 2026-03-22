@@ -6,11 +6,13 @@ import { AddressSummaryEntity } from '@app/db/entities/address-summary.entity';
 import { AddressesController } from './addresses.controller';
 import { AddressesService } from './addresses.service';
 import { NftsModule } from '../nfts/nfts.module';
+import { ProtocolsModule } from '../protocols/protocols.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([TransactionEntity, TokenTransferEntity, AddressSummaryEntity]),
     NftsModule,
+    ProtocolsModule,
   ],
   controllers: [AddressesController],
   providers: [AddressesService],

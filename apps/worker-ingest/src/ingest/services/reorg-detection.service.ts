@@ -182,6 +182,12 @@ export class ReorgDetectionService {
       .where('"block_number" >= :from', { from: String(rollbackFrom) })
       .execute();
 
+    // Delete rolled-back protocol-derived data (dex_swaps etc.)
+    await this.dataSource.query(
+      `DELETE FROM "dex_swaps" WHERE "block_number" >= $1`,
+      [String(rollbackFrom)],
+    );
+
     // Delete rolled-back NFT holdings
     await this.dataSource.query(
       `DELETE FROM "address_nft_holdings" WHERE "last_transfer_block" >= $1`,

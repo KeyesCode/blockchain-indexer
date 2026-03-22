@@ -2,6 +2,7 @@ import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AddressesService } from './addresses.service';
 import { NftsService } from '../nfts/nfts.service';
+import { ProtocolsService } from '../protocols/protocols.service';
 import { PaginationQueryDto, CursorQueryDto, LimitQueryDto } from '../common/pagination';
 import { AddressParamDto } from '../common/params';
 import { TransactionDto, TokenTransferDto, Erc721OwnershipDto, NftTransferDto, ApiPaginatedResponse, ApiCursorPaginatedResponse } from '../common/dto';
@@ -13,6 +14,7 @@ export class AddressesController {
   constructor(
     private readonly addressesService: AddressesService,
     private readonly nftsService: NftsService,
+    private readonly protocolsService: ProtocolsService,
   ) {}
 
   @Get(':address')
@@ -75,6 +77,19 @@ export class AddressesController {
     @Query() query: CursorQueryDto,
   ) {
     return this.nftsService.getNftTransfersByOwner(
+      params.address,
+      query.limit!,
+      query.cursor,
+    );
+  }
+
+  @Get(':address/dex-swaps')
+  @ApiOperation({ summary: 'Get cursor-paginated DEX swaps for an address' })
+  async getAddressDexSwaps(
+    @Param() params: AddressParamDto,
+    @Query() query: CursorQueryDto,
+  ) {
+    return this.protocolsService.getAddressSwaps(
       params.address,
       query.limit!,
       query.cursor,

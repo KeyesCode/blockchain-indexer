@@ -18,6 +18,9 @@ import { NftTokenMetadataEntity } from './entities/nft-token-metadata.entity';
 import { AddressNftHoldingEntity } from './entities/address-nft-holding.entity';
 import { NftContractStatsEntity } from './entities/nft-contract-stats.entity';
 import { ContractStandardEntity } from './entities/contract-standard.entity';
+import { ProtocolContractEntity } from './entities/protocol-contract.entity';
+import { DexPairEntity } from './entities/dex-pair.entity';
+import { DexSwapEntity } from './entities/dex-swap.entity';
 
 const entities = [
   BlockEntity,
@@ -38,6 +41,9 @@ const entities = [
   AddressNftHoldingEntity,
   NftContractStatsEntity,
   ContractStandardEntity,
+  ProtocolContractEntity,
+  DexPairEntity,
+  DexSwapEntity,
 ];
 
 @Global()

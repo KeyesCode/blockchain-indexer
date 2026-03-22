@@ -10,6 +10,9 @@ import { NftTokenMetadataEntity } from '@app/db/entities/nft-token-metadata.enti
 import { AddressNftHoldingEntity } from '@app/db/entities/address-nft-holding.entity';
 import { NftContractStatsEntity } from '@app/db/entities/nft-contract-stats.entity';
 import { ContractStandardEntity } from '@app/db/entities/contract-standard.entity';
+import { DexSwapEntity } from '@app/db/entities/dex-swap.entity';
+import { DexPairEntity } from '@app/db/entities/dex-pair.entity';
+import { ProtocolContractEntity } from '@app/db/entities/protocol-contract.entity';
 import { NftReadModelService } from '@app/db/services/nft-read-model.service';
 import { Erc20TransferDecoderService } from './services/erc20-transfer-decoder.service';
 import { NftTransferDecoderService } from './services/nft-transfer-decoder.service';
@@ -18,6 +21,8 @@ import { TokenMetadataService } from './services/token-metadata.service';
 import { NftMetadataService } from './services/nft-metadata.service';
 import { DecodeProcessor } from './processors/decode-processor';
 import { NftMetadataProcessor } from './processors/nft-metadata-processor';
+import { ProtocolRegistryService } from './protocols/protocol-registry.service';
+import { UniswapV2Decoder } from './protocols/uniswap-v2/uniswap-v2.decoder';
 
 @Module({
   imports: [
@@ -32,6 +37,9 @@ import { NftMetadataProcessor } from './processors/nft-metadata-processor';
       AddressNftHoldingEntity,
       NftContractStatsEntity,
       ContractStandardEntity,
+      DexSwapEntity,
+      DexPairEntity,
+      ProtocolContractEntity,
     ]),
   ],
   providers: [
@@ -43,7 +51,9 @@ import { NftMetadataProcessor } from './processors/nft-metadata-processor';
     NftReadModelService,
     DecodeProcessor,
     NftMetadataProcessor,
+    ProtocolRegistryService,
+    UniswapV2Decoder,
   ],
-  exports: [Erc20TransferDecoderService, NftTransferDecoderService, TokenMetadataService, NftMetadataService],
+  exports: [Erc20TransferDecoderService, NftTransferDecoderService, TokenMetadataService, NftMetadataService, ProtocolRegistryService],
 })
 export class DecodeModule {}
