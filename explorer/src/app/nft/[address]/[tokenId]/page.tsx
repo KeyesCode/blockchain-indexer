@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { truncateHash, formatNumber } from '@/lib/utils';
+import NftImage from '@/components/NftImage';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,12 +45,7 @@ export default async function NftTokenPage({
         <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
           {metadata?.imageUrl && (
             <div className="p-4 flex justify-center bg-gray-800">
-              <img
-                src={metadata.imageUrl}
-                alt={metadata.name ?? `Token #${tokenId}`}
-                className="max-h-64 rounded-lg"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
+              <NftImage src={metadata.imageUrl} alt={metadata.name ?? `Token #${tokenId}`} />
             </div>
           )}
           <div className="p-4 space-y-3">

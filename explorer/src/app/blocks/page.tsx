@@ -1,15 +1,25 @@
 import Link from 'next/link';
 import { api } from '@/lib/api';
-import { formatNumber, timeAgo } from '@/lib/utils';
+import { formatNumber, timeAgo, truncateHash } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
 export default async function BlocksPage() {
-  const blocks = await api.getLatestBlocks(50);
+  let blocks;
+  try {
+    blocks = await api.getLatestBlocks(50);
+  } catch {
+    return (
+      <div className="text-center py-20">
+        <h1 className="text-2xl font-bold mb-4">Blocks</h1>
+        <p className="text-gray-400">Failed to load blocks</p>
+      </div>
+    );
+  }
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Blocks</h1>
+      <h1 className="text-2xl font-bold mb-6">Latest Blocks</h1>
       <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-800 text-gray-400">
@@ -33,7 +43,7 @@ export default async function BlocksPage() {
                 <td className="px-4 py-3 font-mono text-xs">
                   {block.miner ? (
                     <Link href={`/address/${block.miner}`} className="text-blue-400 hover:text-blue-300">
-                      {block.miner.slice(0, 10)}...{block.miner.slice(-8)}
+                      {truncateHash(block.miner)}
                     </Link>
                   ) : '—'}
                 </td>

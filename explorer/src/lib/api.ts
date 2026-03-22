@@ -77,14 +77,17 @@ export const api = {
     fetchApi<any>(`/addresses/${address}/token-transfers?limit=${limit}&offset=${offset}`),
   getAddressNfts: (address: string, limit = 25) =>
     fetchApi<any>(`/addresses/${address}/nfts?limit=${limit}`),
-  getAddressDexSwaps: (address: string, limit = 25) =>
-    fetchApi<any>(`/addresses/${address}/dex-swaps?limit=${limit}`),
+  getAddressDexSwaps: (address: string, limit = 25, cursor?: string) =>
+    fetchApi<any>(`/addresses/${address}/dex-swaps?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
   getAddressApprovals: (address: string, limit = 25) =>
     fetchApi<any>(`/addresses/${address}/approvals?limit=${limit}`),
   getAddressAllowances: (address: string, limit = 25) =>
     fetchApi<any>(`/addresses/${address}/allowances?limit=${limit}`),
-  getAddressLending: (address: string, limit = 25) =>
-    fetchApi<any>(`/addresses/${address}/lending?limit=${limit}`),
+  getAddressNftSales: (address: string, limit = 25, cursor?: string) =>
+    fetchApi<any>(`/addresses/${address}/nft-sales?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  getAddressLending: (address: string, limit = 25, cursor?: string) =>
+    fetchApi<any>(`/addresses/${address}/lending?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
+  getTokens: () => fetchApi<any[]>('/tokens'),
   getToken: (address: string) => fetchApi<any>(`/tokens/${address}`),
   getTokenTransfers: (address: string, limit = 25, offset = 0) =>
     fetchApi<any>(`/tokens/${address}/transfers?limit=${limit}&offset=${offset}`),

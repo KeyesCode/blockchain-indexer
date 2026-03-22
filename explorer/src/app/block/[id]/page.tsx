@@ -6,7 +6,18 @@ export const dynamic = 'force-dynamic';
 
 export default async function BlockPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const block = await api.getBlock(id);
+
+  let block;
+  try {
+    block = await api.getBlock(id);
+  } catch {
+    return (
+      <div className="text-center py-20">
+        <h1 className="text-2xl font-bold mb-4">Block Not Found</h1>
+        <p className="text-gray-400 font-mono">{id}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

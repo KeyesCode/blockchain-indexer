@@ -6,7 +6,19 @@ export const dynamic = 'force-dynamic';
 
 export default async function TxPage({ params }: { params: Promise<{ hash: string }> }) {
   const { hash } = await params;
-  const data = await api.getTransaction(hash);
+
+  let data;
+  try {
+    data = await api.getTransaction(hash);
+  } catch {
+    return (
+      <div className="text-center py-20">
+        <h1 className="text-2xl font-bold mb-4">Transaction Not Found</h1>
+        <p className="text-gray-400 font-mono break-all">{hash}</p>
+      </div>
+    );
+  }
+
   const { transaction: tx, receipt, logs, tokenTransfers } = data;
 
   return (
@@ -77,7 +89,9 @@ export default async function TxPage({ params }: { params: Promise<{ hash: strin
                   {truncateHash(t.toAddress, 6)}
                 </Link>
                 <span className="text-gray-400 ml-2">Token:</span>
-                <span className="font-mono text-xs text-gray-300">{truncateHash(t.tokenAddress, 6)}</span>
+                <Link href={`/token/${t.tokenAddress}`} className="text-blue-400 font-mono text-xs">
+                  {truncateHash(t.tokenAddress, 6)}
+                </Link>
               </div>
             ))}
           </div>

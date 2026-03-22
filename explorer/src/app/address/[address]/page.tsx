@@ -5,22 +5,32 @@ import Pagination from '@/components/Pagination';
 
 export const dynamic = 'force-dynamic';
 
-type Tab = 'txs' | 'tokens' | 'nfts' | 'swaps' | 'approvals' | 'lending';
+type Tab = 'txs' | 'tokens' | 'nfts' | 'swaps' | 'approvals' | 'nft-sales' | 'lending';
 
 export default async function AddressPage({
   params,
   searchParams,
 }: {
   params: Promise<{ address: string }>;
-  searchParams: Promise<{ tab?: string; offset?: string }>;
+  searchParams: Promise<{ tab?: string; offset?: string; cursor?: string }>;
 }) {
   const { address } = await params;
-  const { tab = 'txs', offset: offsetStr = '0' } = await searchParams;
+  const { tab = 'txs', offset: offsetStr = '0', cursor } = await searchParams;
   const offset = Number(offsetStr);
   const limit = 25;
   const activeTab = tab as Tab;
 
-  const overview = await api.getAddress(address);
+  let overview: any;
+  try {
+    overview = await api.getAddress(address);
+  } catch {
+    return (
+      <div className="text-center py-20">
+        <h1 className="text-2xl font-bold mb-4">Address Not Found</h1>
+        <p className="text-gray-400 font-mono break-all">{address}</p>
+      </div>
+    );
+  }
 
   let tabData: any = null;
   try {
@@ -35,13 +45,16 @@ export default async function AddressPage({
         tabData = await api.getAddressNfts(address, limit);
         break;
       case 'swaps':
-        tabData = await api.getAddressDexSwaps(address, limit);
+        tabData = await api.getAddressDexSwaps(address, limit, cursor);
         break;
       case 'approvals':
         tabData = await api.getAddressAllowances(address, limit);
         break;
+      case 'nft-sales':
+        tabData = await api.getAddressNftSales(address, limit, cursor);
+        break;
       case 'lending':
-        tabData = await api.getAddressLending(address, limit);
+        tabData = await api.getAddressLending(address, limit, cursor);
         break;
     }
   } catch {}
@@ -52,6 +65,7 @@ export default async function AddressPage({
     { key: 'nfts', label: 'NFTs' },
     { key: 'swaps', label: 'DEX Swaps' },
     { key: 'approvals', label: 'Allowances' },
+    { key: 'nft-sales', label: 'NFT Sales' },
     { key: 'lending', label: 'Lending' },
   ];
 
@@ -165,18 +179,27 @@ export default async function AddressPage({
         )}
 
         {activeTab === 'swaps' && tabData && (
-          <div className="divide-y divide-gray-800">
-            {(tabData.items ?? []).length > 0 ? (tabData.items ?? []).map((s: any, i: number) => (
-              <div key={i} className="p-4 text-sm">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs px-2 py-0.5 rounded bg-blue-900 text-blue-300">{s.protocolName}</span>
-                  <Link href={`/tx/${s.transactionHash}`} className="text-blue-400 font-mono text-xs">{truncateHash(s.transactionHash)}</Link>
-                  <span className="text-gray-500 text-xs">Block {formatNumber(s.blockNumber)}</span>
+          <>
+            <div className="divide-y divide-gray-800">
+              {(tabData.items ?? []).length > 0 ? (tabData.items ?? []).map((s: any, i: number) => (
+                <div key={i} className="p-4 text-sm">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs px-2 py-0.5 rounded bg-blue-900 text-blue-300">{s.protocolName}</span>
+                    <Link href={`/tx/${s.transactionHash}`} className="text-blue-400 font-mono text-xs">{truncateHash(s.transactionHash)}</Link>
+                    <span className="text-gray-500 text-xs">Block {formatNumber(s.blockNumber)}</span>
+                  </div>
+                  <div className="text-xs text-gray-400">Pair: <span className="font-mono">{truncateHash(s.pairAddress, 6)}</span></div>
                 </div>
-                <div className="text-xs text-gray-400">Pair: <span className="font-mono">{truncateHash(s.pairAddress, 6)}</span></div>
+              )) : <div className="p-8 text-center text-gray-400">No DEX swaps</div>}
+            </div>
+            {tabData.nextCursor && (
+              <div className="px-4 py-3 border-t border-gray-800">
+                <Link href={`/address/${address}?tab=swaps&cursor=${tabData.nextCursor}`} className="px-3 py-1 bg-gray-800 border border-gray-700 rounded text-sm hover:bg-gray-700">
+                  Next Page
+                </Link>
               </div>
-            )) : <div className="p-8 text-center text-gray-400">No DEX swaps</div>}
-          </div>
+            )}
+          </>
         )}
 
         {activeTab === 'approvals' && tabData && (
@@ -196,21 +219,62 @@ export default async function AddressPage({
           </table>
         )}
 
-        {activeTab === 'lending' && tabData && (
-          <div className="divide-y divide-gray-800">
-            {(tabData.items ?? []).length > 0 ? (tabData.items ?? []).map((e: any, i: number) => (
-              <div key={i} className="p-4 text-sm">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs px-2 py-0.5 rounded bg-green-900 text-green-300">{e.protocolName}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded ${
-                    e.eventType === 'DEPOSIT' ? 'bg-blue-900 text-blue-300' : e.eventType === 'BORROW' ? 'bg-red-900 text-red-300' : 'bg-orange-900 text-orange-300'
-                  }`}>{e.eventType}</span>
-                  <Link href={`/tx/${e.transactionHash}`} className="text-blue-400 font-mono text-xs">{truncateHash(e.transactionHash)}</Link>
+        {activeTab === 'nft-sales' && tabData && (
+          <>
+            <div className="divide-y divide-gray-800">
+              {(tabData.items ?? []).length > 0 ? (tabData.items ?? []).map((s: any, i: number) => (
+                <div key={i} className="p-4 text-sm">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs px-2 py-0.5 rounded bg-purple-900 text-purple-300">{s.protocolName}</span>
+                    <Link href={`/tx/${s.transactionHash}`} className="text-blue-400 font-mono text-xs">{truncateHash(s.transactionHash)}</Link>
+                    <span className="text-gray-500 text-xs">Block {formatNumber(s.blockNumber)}</span>
+                  </div>
+                  <div className="text-xs text-gray-400 space-x-3">
+                    <span>Collection: <Link href={`/nft/${s.collectionAddress}`} className="text-blue-400 font-mono">{truncateHash(s.collectionAddress, 6)}</Link></span>
+                    <span>Token: <Link href={`/nft/${s.collectionAddress}/${s.tokenId}`} className="text-blue-400 font-mono">#{s.tokenId}</Link></span>
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1 space-x-3">
+                    <span>Seller: <Link href={`/address/${s.seller}`} className="text-blue-400 font-mono">{truncateHash(s.seller, 4)}</Link></span>
+                    <span>Buyer: <Link href={`/address/${s.buyer}`} className="text-blue-400 font-mono">{truncateHash(s.buyer, 4)}</Link></span>
+                    {s.totalPrice && <span>Price: <span className="text-white font-mono">{formatWei(s.totalPrice)}</span></span>}
+                  </div>
                 </div>
-                <div className="text-xs text-gray-400">Asset: <span className="font-mono">{truncateHash(e.assetAddress, 6)}</span> | Amount: {e.amount}</div>
+              )) : <div className="p-8 text-center text-gray-400">No NFT sales</div>}
+            </div>
+            {tabData.nextCursor && (
+              <div className="px-4 py-3 border-t border-gray-800">
+                <Link href={`/address/${address}?tab=nft-sales&cursor=${tabData.nextCursor}`} className="px-3 py-1 bg-gray-800 border border-gray-700 rounded text-sm hover:bg-gray-700">
+                  Next Page
+                </Link>
               </div>
-            )) : <div className="p-8 text-center text-gray-400">No lending activity</div>}
-          </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'lending' && tabData && (
+          <>
+            <div className="divide-y divide-gray-800">
+              {(tabData.items ?? []).length > 0 ? (tabData.items ?? []).map((e: any, i: number) => (
+                <div key={i} className="p-4 text-sm">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs px-2 py-0.5 rounded bg-green-900 text-green-300">{e.protocolName}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      e.eventType === 'DEPOSIT' ? 'bg-blue-900 text-blue-300' : e.eventType === 'BORROW' ? 'bg-red-900 text-red-300' : 'bg-orange-900 text-orange-300'
+                    }`}>{e.eventType}</span>
+                    <Link href={`/tx/${e.transactionHash}`} className="text-blue-400 font-mono text-xs">{truncateHash(e.transactionHash)}</Link>
+                  </div>
+                  <div className="text-xs text-gray-400">Asset: <span className="font-mono">{truncateHash(e.assetAddress, 6)}</span> | Amount: {e.amount}</div>
+                </div>
+              )) : <div className="p-8 text-center text-gray-400">No lending activity</div>}
+            </div>
+            {tabData.nextCursor && (
+              <div className="px-4 py-3 border-t border-gray-800">
+                <Link href={`/address/${address}?tab=lending&cursor=${tabData.nextCursor}`} className="px-3 py-1 bg-gray-800 border border-gray-700 rounded text-sm hover:bg-gray-700">
+                  Next Page
+                </Link>
+              </div>
+            )}
+          </>
         )}
 
         {!tabData && <div className="p-8 text-center text-gray-400">Failed to load data</div>}

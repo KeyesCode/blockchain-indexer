@@ -33,7 +33,7 @@ export default async function SearchPage({
       case 'address':
         redirect(`/address/${result.result.address}`);
       case 'token':
-        redirect(`/address/${result.result.address}`);
+        redirect(`/token/${result.result.address}`);
       case 'none':
       default:
         return (
