@@ -4,7 +4,8 @@ import { LogEntity } from '@app/db/entities/log.entity';
 import { TokenTransferEntity } from '@app/db/entities/token-transfer.entity';
 import { TokenContractEntity } from '@app/db/entities/token-contract.entity';
 import { NftTransferEntity } from '@app/db/entities/nft-transfer.entity';
-import { NftOwnershipEntity } from '@app/db/entities/nft-ownership.entity';
+import { Erc721OwnershipEntity } from '@app/db/entities/erc721-ownership.entity';
+import { Erc1155BalanceEntity } from '@app/db/entities/erc1155-balance.entity';
 import { NftTokenMetadataEntity } from '@app/db/entities/nft-token-metadata.entity';
 import { Erc20TransferDecoderService } from './services/erc20-transfer-decoder.service';
 import { NftTransferDecoderService } from './services/nft-transfer-decoder.service';
@@ -20,7 +21,8 @@ import { DecodeProcessor } from './processors/decode-processor';
       TokenTransferEntity,
       TokenContractEntity,
       NftTransferEntity,
-      NftOwnershipEntity,
+      Erc721OwnershipEntity,
+      Erc1155BalanceEntity,
       NftTokenMetadataEntity,
     ]),
   ],

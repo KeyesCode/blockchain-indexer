@@ -11,7 +11,8 @@ import { ReorgEventEntity } from './entities/reorg-event.entity';
 import { AddressSummaryEntity } from './entities/address-summary.entity';
 import { TokenStatsEntity } from './entities/token-stats.entity';
 import { NftTransferEntity } from './entities/nft-transfer.entity';
-import { NftOwnershipEntity } from './entities/nft-ownership.entity';
+import { Erc721OwnershipEntity } from './entities/erc721-ownership.entity';
+import { Erc1155BalanceEntity } from './entities/erc1155-balance.entity';
 import { NftTokenMetadataEntity } from './entities/nft-token-metadata.entity';
 
 export default new DataSource({
@@ -34,7 +35,8 @@ export default new DataSource({
     AddressSummaryEntity,
     TokenStatsEntity,
     NftTransferEntity,
-    NftOwnershipEntity,
+    Erc721OwnershipEntity,
+    Erc1155BalanceEntity,
     NftTokenMetadataEntity,
   ],
   migrations: ['libs/db/src/migrations/*.ts'],

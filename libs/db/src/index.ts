@@ -11,5 +11,6 @@ export * from './entities/reorg-event.entity';
 export * from './entities/address-summary.entity';
 export * from './entities/token-stats.entity';
 export * from './entities/nft-transfer.entity';
-export * from './entities/nft-ownership.entity';
+export * from './entities/erc721-ownership.entity';
+export * from './entities/erc1155-balance.entity';
 export * from './entities/nft-token-metadata.entity';

@@ -6,7 +6,8 @@ import { BlockEntity } from '@app/db/entities/block.entity';
 import { LogEntity } from '@app/db/entities/log.entity';
 import { TokenTransferEntity } from '@app/db/entities/token-transfer.entity';
 import { NftTransferEntity } from '@app/db/entities/nft-transfer.entity';
-import { NftOwnershipEntity } from '@app/db/entities/nft-ownership.entity';
+import { Erc721OwnershipEntity } from '@app/db/entities/erc721-ownership.entity';
+import { Erc1155BalanceEntity } from '@app/db/entities/erc1155-balance.entity';
 import { SyncCheckpointEntity } from '@app/db/entities/sync-checkpoint.entity';
 import { ReorgEventEntity } from '@app/db/entities/reorg-event.entity';
 import { MetricsService, normalizeHash } from '@app/common';
@@ -40,8 +41,11 @@ export class ReorgDetectionService {
     @InjectRepository(NftTransferEntity)
     private readonly nftTransferRepo: Repository<NftTransferEntity>,
 
-    @InjectRepository(NftOwnershipEntity)
-    private readonly nftOwnershipRepo: Repository<NftOwnershipEntity>,
+    @InjectRepository(Erc721OwnershipEntity)
+    private readonly erc721Repo: Repository<Erc721OwnershipEntity>,
+
+    @InjectRepository(Erc1155BalanceEntity)
+    private readonly erc1155Repo: Repository<Erc1155BalanceEntity>,
 
     @InjectRepository(SyncCheckpointEntity)
     private readonly checkpointRepo: Repository<SyncCheckpointEntity>,
@@ -177,8 +181,14 @@ export class ReorgDetectionService {
       .execute();
 
     // Delete orphaned nft_transfers and recompute ownership
-    // First, delete ownership rows that were last updated in rolled-back blocks
-    await this.nftOwnershipRepo
+    // First, delete ownership/balance rows that were last updated in rolled-back blocks
+    await this.erc721Repo
+      .createQueryBuilder()
+      .delete()
+      .where('"last_transfer_block" >= :from', { from: String(rollbackFrom) })
+      .execute();
+
+    await this.erc1155Repo
       .createQueryBuilder()
       .delete()
       .where('"last_transfer_block" >= :from', { from: String(rollbackFrom) })

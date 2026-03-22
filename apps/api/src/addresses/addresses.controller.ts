@@ -4,7 +4,7 @@ import { AddressesService } from './addresses.service';
 import { NftsService } from '../nfts/nfts.service';
 import { PaginationQueryDto, LimitQueryDto } from '../common/pagination';
 import { AddressParamDto } from '../common/params';
-import { TransactionDto, TokenTransferDto, NftOwnershipDto, NftTransferDto, ApiPaginatedResponse } from '../common/dto';
+import { TransactionDto, TokenTransferDto, Erc721OwnershipDto, NftTransferDto, ApiPaginatedResponse } from '../common/dto';
 import { AddressOverviewDto } from './dto/address-overview.dto';
 
 @ApiTags('Addresses')
@@ -55,7 +55,7 @@ export class AddressesController {
 
   @Get(':address/nfts')
   @ApiOperation({ summary: 'Get NFTs owned by an address' })
-  @ApiPaginatedResponse(NftOwnershipDto)
+  @ApiPaginatedResponse(Erc721OwnershipDto)
   async getAddressNfts(
     @Param() params: AddressParamDto,
     @Query() query: PaginationQueryDto,

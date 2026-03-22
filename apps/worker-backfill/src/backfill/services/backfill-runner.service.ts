@@ -8,7 +8,8 @@ import { TransactionReceiptEntity } from '@app/db/entities/transaction-receipt.e
 import { LogEntity } from '@app/db/entities/log.entity';
 import { TokenTransferEntity } from '@app/db/entities/token-transfer.entity';
 import { NftTransferEntity } from '@app/db/entities/nft-transfer.entity';
-import { NftOwnershipEntity } from '@app/db/entities/nft-ownership.entity';
+import { Erc721OwnershipEntity } from '@app/db/entities/erc721-ownership.entity';
+import { Erc1155BalanceEntity } from '@app/db/entities/erc1155-balance.entity';
 import { BackfillJobEntity, BackfillJobStatus } from '@app/db/entities/backfill-job.entity';
 import { BackfillJobService } from './backfill-job.service';
 import { normalizeAddress, normalizeHash, MetricsService } from '@app/common';
@@ -50,8 +51,11 @@ export class BackfillRunnerService {
     @InjectRepository(NftTransferEntity)
     private readonly nftTransferRepo: Repository<NftTransferEntity>,
 
-    @InjectRepository(NftOwnershipEntity)
-    private readonly nftOwnershipRepo: Repository<NftOwnershipEntity>,
+    @InjectRepository(Erc721OwnershipEntity)
+    private readonly erc721Repo: Repository<Erc721OwnershipEntity>,
+
+    @InjectRepository(Erc1155BalanceEntity)
+    private readonly erc1155Repo: Repository<Erc1155BalanceEntity>,
 
     private readonly jobService: BackfillJobService,
 
@@ -297,24 +301,23 @@ export class BackfillRunnerService {
             // Update ERC-721 ownership
             const zeroAddr = '0x0000000000000000000000000000000000000000';
             for (const nft of nftInserts) {
-              if (nft.fromAddress !== zeroAddr) {
-                await this.nftOwnershipRepo.delete({
+              if (nft.toAddress === zeroAddr) {
+                // Burn — remove the ownership row
+                await this.erc721Repo.delete({
                   tokenAddress: nft.tokenAddress!,
                   tokenId: nft.tokenId!,
-                  ownerAddress: nft.fromAddress!,
                 });
-              }
-              if (nft.toAddress !== zeroAddr) {
-                await this.nftOwnershipRepo.upsert(
+              } else {
+                // Mint or transfer — upsert with new owner
+                await this.erc721Repo.upsert(
                   {
                     tokenAddress: nft.tokenAddress!,
                     tokenId: nft.tokenId!,
                     ownerAddress: nft.toAddress!,
-                    quantity: '1',
                     lastTransferBlock: nft.blockNumber!,
                     updatedAt: new Date(),
                   },
-                  ['tokenAddress', 'tokenId', 'ownerAddress'],
+                  ['tokenAddress', 'tokenId'],
                 );
               }
             }
@@ -389,32 +392,32 @@ export class BackfillRunnerService {
             for (const t of erc1155Inserts) {
               const qty = BigInt(t.quantity!);
               if (t.fromAddress !== zeroAddr) {
-                const existing = await this.nftOwnershipRepo.findOne({
+                const existing = await this.erc1155Repo.findOne({
                   where: { tokenAddress: t.tokenAddress!, tokenId: t.tokenId!, ownerAddress: t.fromAddress! },
                 });
                 if (existing) {
-                  const newBal = BigInt(existing.quantity) - qty;
+                  const newBal = BigInt(existing.balance) - qty;
                   if (newBal <= 0n) {
-                    await this.nftOwnershipRepo.delete({
+                    await this.erc1155Repo.delete({
                       tokenAddress: t.tokenAddress!, tokenId: t.tokenId!, ownerAddress: t.fromAddress!,
                     });
                   } else {
-                    await this.nftOwnershipRepo.update(
+                    await this.erc1155Repo.update(
                       { tokenAddress: t.tokenAddress!, tokenId: t.tokenId!, ownerAddress: t.fromAddress! },
-                      { quantity: newBal.toString(), lastTransferBlock: t.blockNumber!, updatedAt: new Date() },
+                      { balance: newBal.toString(), lastTransferBlock: t.blockNumber!, updatedAt: new Date() },
                     );
                   }
                 }
               }
               if (t.toAddress !== zeroAddr) {
-                const existing = await this.nftOwnershipRepo.findOne({
+                const existing = await this.erc1155Repo.findOne({
                   where: { tokenAddress: t.tokenAddress!, tokenId: t.tokenId!, ownerAddress: t.toAddress! },
                 });
-                const newBal = existing ? BigInt(existing.quantity) + qty : qty;
-                await this.nftOwnershipRepo.upsert(
+                const newBal = existing ? BigInt(existing.balance) + qty : qty;
+                await this.erc1155Repo.upsert(
                   {
                     tokenAddress: t.tokenAddress!, tokenId: t.tokenId!, ownerAddress: t.toAddress!,
-                    quantity: newBal.toString(), lastTransferBlock: t.blockNumber!, updatedAt: new Date(),
+                    balance: newBal.toString(), lastTransferBlock: t.blockNumber!, updatedAt: new Date(),
                   },
                   ['tokenAddress', 'tokenId', 'ownerAddress'],
                 );

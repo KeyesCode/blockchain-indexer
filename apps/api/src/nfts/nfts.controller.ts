@@ -3,7 +3,7 @@ import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { NftsService } from './nfts.service';
 import { PaginationQueryDto } from '../common/pagination';
 import { AddressParamDto } from '../common/params';
-import { NftTransferDto, NftOwnershipDto, ApiPaginatedResponse } from '../common/dto';
+import { NftTransferDto, Erc721OwnershipDto, ApiPaginatedResponse } from '../common/dto';
 import { NftTokenDetailDto } from './dto/nft-token-detail.dto';
 
 @ApiTags('NFTs')
@@ -53,7 +53,7 @@ export class NftsController {
 
   @Get('collections/:address/tokens/:tokenId/owners')
   @ApiOperation({ summary: 'Get current owners of a token (ERC-1155 may have multiple)' })
-  @ApiPaginatedResponse(NftOwnershipDto)
+  @ApiPaginatedResponse(Erc721OwnershipDto)
   async getTokenOwners(
     @Param('address') address: string,
     @Param('tokenId') tokenId: string,

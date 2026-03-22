@@ -5,6 +5,7 @@ export { LogDto } from './log.dto';
 export { TokenTransferDto } from './token-transfer.dto';
 export { TokenContractDto } from './token-contract.dto';
 export { NftTransferDto } from './nft-transfer.dto';
-export { NftOwnershipDto } from './nft-ownership.dto';
+export { Erc721OwnershipDto } from './erc721-ownership.dto';
+export { Erc1155BalanceDto } from './erc1155-balance.dto';
 export { NftTokenMetadataDto } from './nft-token-metadata.dto';
 export { PaginatedDto, ApiPaginatedResponse } from './paginated.dto';

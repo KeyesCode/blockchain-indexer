@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { NftTokenMetadataDto } from '../../common/dto/nft-token-metadata.dto';
-import { NftOwnershipDto } from '../../common/dto/nft-ownership.dto';
+import { Erc721OwnershipDto } from '../../common/dto/erc721-ownership.dto';
+import { Erc1155BalanceDto } from '../../common/dto/erc1155-balance.dto';
 import { NftTransferDto } from '../../common/dto/nft-transfer.dto';
 
 export class NftTokenDetailDto {
@@ -13,8 +14,8 @@ export class NftTokenDetailDto {
   @ApiPropertyOptional({ type: NftTokenMetadataDto, nullable: true })
   metadata!: NftTokenMetadataDto | null;
 
-  @ApiProperty({ type: [NftOwnershipDto] })
-  owners!: NftOwnershipDto[];
+  @ApiProperty({ type: [Erc721OwnershipDto] })
+  owners!: (Erc721OwnershipDto | Erc1155BalanceDto)[];
 
   @ApiProperty({ type: [NftTransferDto] })
   recentTransfers!: NftTransferDto[];

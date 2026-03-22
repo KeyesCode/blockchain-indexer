@@ -10,7 +10,8 @@ import { SyncCheckpointEntity } from '@app/db/entities/sync-checkpoint.entity';
 import { BackfillJobEntity, BackfillJobStatus } from '@app/db/entities/backfill-job.entity';
 import { ReorgEventEntity } from '@app/db/entities/reorg-event.entity';
 import { NftTransferEntity } from '@app/db/entities/nft-transfer.entity';
-import { NftOwnershipEntity } from '@app/db/entities/nft-ownership.entity';
+import { Erc721OwnershipEntity } from '@app/db/entities/erc721-ownership.entity';
+import { Erc1155BalanceEntity } from '@app/db/entities/erc1155-balance.entity';
 import { BlockSyncService } from '../apps/worker-ingest/src/ingest/services/block-sync.service';
 import { ReceiptSyncService } from '../apps/worker-ingest/src/ingest/services/receipt-sync.service';
 import { CheckpointService } from '../apps/worker-ingest/src/ingest/services/checkpoint.service';
@@ -53,7 +54,8 @@ describe('Phase 1: End-to-end system validation', () => {
   let jobRepo: Repository<BackfillJobEntity>;
   let reorgRepo: Repository<ReorgEventEntity>;
   let nftTransferRepo: Repository<NftTransferEntity>;
-  let nftOwnershipRepo: Repository<NftOwnershipEntity>;
+  let erc721Repo: Repository<Erc721OwnershipEntity>;
+  let erc1155Repo: Repository<Erc1155BalanceEntity>;
 
   let blockSyncService: BlockSyncService;
   let receiptSyncService: ReceiptSyncService;
@@ -122,7 +124,8 @@ describe('Phase 1: End-to-end system validation', () => {
     jobRepo = module.get(getRepositoryToken(BackfillJobEntity));
     reorgRepo = module.get(getRepositoryToken(ReorgEventEntity));
     nftTransferRepo = module.get(getRepositoryToken(NftTransferEntity));
-    nftOwnershipRepo = module.get(getRepositoryToken(NftOwnershipEntity));
+    erc721Repo = module.get(getRepositoryToken(Erc721OwnershipEntity));
+    erc1155Repo = module.get(getRepositoryToken(Erc1155BalanceEntity));
 
     blockSyncService = module.get(BlockSyncService);
     receiptSyncService = module.get(ReceiptSyncService);
@@ -907,21 +910,20 @@ describe('Phase 1: End-to-end system validation', () => {
       }
     });
 
-    it('should update nft_ownership_current on transfer', async () => {
+    it('should update erc721_ownership on transfer', async () => {
       for (let bn = 1; bn <= 12; bn++) {
         await nftDecoder.decodeBlock(bn);
       }
 
       // Filter to ERC-721 contract only
-      const ownership = await nftOwnershipRepo.find({
+      const ownership = await erc721Repo.find({
         where: { tokenAddress: '0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d' },
       });
       expect(ownership.length).toBeGreaterThan(0);
 
-      // Each ERC-721 token should have exactly one owner with quantity 1
+      // Each ERC-721 token should have exactly one owner
       for (const own of ownership) {
         expect(own.ownerAddress).toMatch(/^0x[0-9a-f]{40}$/);
-        expect(own.quantity).toBe('1');
         expect(BigInt(own.lastTransferBlock)).toBeGreaterThan(0n);
       }
     });
@@ -935,10 +937,13 @@ describe('Phase 1: End-to-end system validation', () => {
         await nftDecoder.decodeBlock(bn);
       }
 
-      const transfers = await nftTransferRepo.find({ order: { blockNumber: 'ASC' } });
-      const ownership = await nftOwnershipRepo.find();
+      const transfers = await nftTransferRepo.find({
+        where: { tokenType: 'ERC721' },
+        order: { blockNumber: 'ASC' },
+      });
+      const ownership = await erc721Repo.find();
 
-      // Each transfer's toAddress should be the current owner
+      // Each ERC-721 transfer's toAddress should be the current owner
       for (const transfer of transfers) {
         const owner = ownership.find(
           (o) => o.tokenAddress === transfer.tokenAddress && o.tokenId === transfer.tokenId,
@@ -969,7 +974,7 @@ describe('Phase 1: End-to-end system validation', () => {
       }
 
       const nftCountBefore = await nftTransferRepo.count();
-      const ownershipBefore = await nftOwnershipRepo.count();
+      const ownershipBefore = await erc721Repo.count();
       expect(nftCountBefore).toBeGreaterThan(0);
 
       // Rollback from block 7 — should remove nft_transfers for blocks 7-12
@@ -985,7 +990,7 @@ describe('Phase 1: End-to-end system validation', () => {
       }
 
       // Ownership should be cleaned for tokens affected by rollback
-      const ownershipAfter = await nftOwnershipRepo.find();
+      const ownershipAfter = await erc721Repo.find();
       for (const own of ownershipAfter) {
         expect(Number(own.lastTransferBlock)).toBeLessThanOrEqual(6);
       }
@@ -1024,18 +1029,18 @@ describe('Phase 1: End-to-end system validation', () => {
       }
     });
 
-    it('should track ERC-1155 balances via nft_ownership_current', async () => {
+    it('should track ERC-1155 balances via erc1155_balances', async () => {
       for (let bn = 1; bn <= 15; bn++) {
         await nftDecoder.decodeBlock(bn);
       }
 
-      const erc1155Ownership = await nftOwnershipRepo.find({
+      const erc1155Balances = await erc1155Repo.find({
         where: { tokenAddress: '0x76be3b62873462d2142405439777e971754e8e77' },
       });
-      expect(erc1155Ownership.length).toBeGreaterThan(0);
+      expect(erc1155Balances.length).toBeGreaterThan(0);
 
-      for (const own of erc1155Ownership) {
-        expect(BigInt(own.quantity)).toBeGreaterThan(0n);
+      for (const own of erc1155Balances) {
+        expect(BigInt(own.balance)).toBeGreaterThan(0n);
       }
     });
 

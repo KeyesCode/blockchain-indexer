@@ -9,7 +9,8 @@ import { BackfillJobEntity } from '@app/db/entities/backfill-job.entity';
 import { AddressSummaryEntity } from '@app/db/entities/address-summary.entity';
 import { TokenStatsEntity } from '@app/db/entities/token-stats.entity';
 import { NftTransferEntity } from '@app/db/entities/nft-transfer.entity';
-import { NftOwnershipEntity } from '@app/db/entities/nft-ownership.entity';
+import { Erc721OwnershipEntity } from '@app/db/entities/erc721-ownership.entity';
+import { Erc1155BalanceEntity } from '@app/db/entities/erc1155-balance.entity';
 import { SummaryService } from '@app/db/services/summary.service';
 import { PartitionManagerService } from '@app/db/services/partition-manager.service';
 import { BackfillJobService } from './services/backfill-job.service';
@@ -28,7 +29,8 @@ import { RangePlannerService } from './services/range-planner.service';
       AddressSummaryEntity,
       TokenStatsEntity,
       NftTransferEntity,
-      NftOwnershipEntity,
+      Erc721OwnershipEntity,
+      Erc1155BalanceEntity,
     ]),
   ],
   providers: [BackfillJobService, BackfillRunnerService, RangePlannerService, SummaryService, PartitionManagerService],

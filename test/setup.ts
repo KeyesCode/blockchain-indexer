@@ -14,7 +14,8 @@ import { ReorgEventEntity } from '@app/db/entities/reorg-event.entity';
 import { AddressSummaryEntity } from '@app/db/entities/address-summary.entity';
 import { TokenStatsEntity } from '@app/db/entities/token-stats.entity';
 import { NftTransferEntity } from '@app/db/entities/nft-transfer.entity';
-import { NftOwnershipEntity } from '@app/db/entities/nft-ownership.entity';
+import { Erc721OwnershipEntity } from '@app/db/entities/erc721-ownership.entity';
+import { Erc1155BalanceEntity } from '@app/db/entities/erc1155-balance.entity';
 import { NftTokenMetadataEntity } from '@app/db/entities/nft-token-metadata.entity';
 import { CHAIN_PROVIDER } from '@app/chain-provider/chain-provider.interface';
 import { QUEUE_NAMES } from '@app/queue/queue.constants';
@@ -34,7 +35,8 @@ export const ALL_ENTITIES = [
   AddressSummaryEntity,
   TokenStatsEntity,
   NftTransferEntity,
-  NftOwnershipEntity,
+  Erc721OwnershipEntity,
+  Erc1155BalanceEntity,
   NftTokenMetadataEntity,
 ];
 
@@ -112,7 +114,8 @@ export async function clearDatabase(module: TestingModule): Promise<void> {
   await dataSource.query('DELETE FROM "address_summaries"');
   await dataSource.query('DELETE FROM "token_stats"');
   await dataSource.query('DELETE FROM "nft_token_metadata"');
-  await dataSource.query('DELETE FROM "nft_ownership_current"');
+  await dataSource.query('DELETE FROM "erc721_ownership"');
+  await dataSource.query('DELETE FROM "erc1155_balances"');
   await dataSource.query('DELETE FROM "nft_transfers"');
 }
 
