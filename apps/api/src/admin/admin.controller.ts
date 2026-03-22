@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Param, Patch, Query, ParseIntPipe } from '@nestjs/common';
-import { ApiOkResponse, ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiCreatedResponse, ApiOperation, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
+import { MetadataBackfillService } from './metadata-backfill.service';
 import { NftReconciliationService } from '@app/db/services/nft-reconciliation.service';
 import { LimitQueryDto } from '../common/pagination';
 import { CreateBackfillJobDto } from './dto/create-backfill-job.dto';
@@ -15,6 +16,7 @@ import { NftReconcileReportDto, NftValidationReportDto, NftRebuildResultDto } fr
 export class AdminController {
   constructor(
     private readonly adminService: AdminService,
+    private readonly metadataBackfill: MetadataBackfillService,
     private readonly reconciliation: NftReconciliationService,
   ) {}
 
@@ -119,5 +121,31 @@ export class AdminController {
   @ApiOkResponse({ type: NftValidationReportDto })
   async nftValidateContract(@Param('address') address: string) {
     return this.reconciliation.validate(address.toLowerCase());
+  }
+
+  // ── Metadata Backfill ──
+
+  @Post('metadata/backfill-tokens')
+  @ApiOperation({
+    summary: 'Backfill token_contracts for all tokens in token_transfers missing metadata',
+  })
+  async backfillTokenMetadata() {
+    return this.metadataBackfill.backfillTokenContracts();
+  }
+
+  @Post('metadata/backfill-nfts')
+  @ApiOperation({
+    summary: 'Backfill nft_token_metadata for NFTs in nft_transfers missing metadata',
+  })
+  @ApiQuery({ name: 'limit', required: false, description: 'Max tokens to process (default 1000)' })
+  @ApiQuery({ name: 'fetchContent', required: false, description: 'Also fetch metadata from IPFS/HTTP (default true)' })
+  async backfillNftMetadata(
+    @Query('limit') limit?: string,
+    @Query('fetchContent') fetchContent?: string,
+  ) {
+    return this.metadataBackfill.backfillNftMetadata({
+      limit: limit ? Number(limit) : undefined,
+      fetchContent: fetchContent !== 'false',
+    });
   }
 }
