@@ -11,6 +11,7 @@ import {
 import { AbiCoder } from 'ethers';
 
 const UNISWAP_V2_SWAP_TOPIC = '0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822';
+const UNISWAP_V3_SWAP_TOPIC = '0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67';
 
 /**
  * A test chain provider that generates deterministic, realistic blockchain data.
@@ -276,6 +277,31 @@ export class TestChainProvider implements ChainProvider {
         logIndex: logs.length,
         data: swapData,
         topics: [UNISWAP_V2_SWAP_TOPIC, senderPadded, toPadded],
+        removed: false,
+      });
+    }
+
+    // Uniswap V3 Swap log on blocks divisible by 7, tx index 0
+    const hasV3Swap = blockNumber % 7 === 0 && tx.transactionIndex === 0;
+    if (hasV3Swap) {
+      const v3PoolAddress = '0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640'; // USDC/WETH 0.05%
+      const senderPaddedV3 = `0x000000000000000000000000${tx.from.slice(2)}`;
+      const recipientPaddedV3 = `0x000000000000000000000000${tx.to!.slice(2)}`;
+      // V3 data: int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick
+      // amount0=500000 (positive = user pays USDC), amount1=-250000000000000 (negative = user receives WETH)
+      const v3SwapData = AbiCoder.defaultAbiCoder().encode(
+        ['int256', 'int256', 'uint160', 'uint128', 'int24'],
+        [BigInt(500000), BigInt(-250000000000000), BigInt('1234567890000000000'), BigInt(1000000), -100],
+      );
+
+      logs.push({
+        address: v3PoolAddress,
+        blockNumber,
+        transactionHash: tx.hash,
+        transactionIndex: tx.transactionIndex,
+        logIndex: logs.length,
+        data: v3SwapData,
+        topics: [UNISWAP_V3_SWAP_TOPIC, senderPaddedV3, recipientPaddedV3],
         removed: false,
       });
     }

@@ -8,19 +8,15 @@ import { DexSwapEntity } from '@app/db/entities/dex-swap.entity';
 import { ProtocolContractEntity } from '@app/db/entities/protocol-contract.entity';
 import { ProtocolDecoder } from '../protocol-decoder.interface';
 import { ProtocolRegistryService } from '../protocol-registry.service';
-import {
-  UNISWAP_V2_SWAP_TOPIC,
-  UNISWAP_V2_PAIR_ABI,
-  PROTOCOL_NAME,
-} from './constants';
+import { UNISWAP_V3_SWAP_TOPIC, UNISWAP_V3_POOL_ABI, PROTOCOL_NAME } from './constants';
 
 @Injectable()
-export class UniswapV2Decoder implements ProtocolDecoder, OnModuleInit {
+export class UniswapV3Decoder implements ProtocolDecoder, OnModuleInit {
   readonly protocol = PROTOCOL_NAME;
-  private readonly logger = new Logger(UniswapV2Decoder.name);
+  private readonly logger = new Logger(UniswapV3Decoder.name);
   private readonly provider: JsonRpcProvider | null;
-  private readonly pairCache = new Map<string, { token0: string; token1: string }>();
-  private readonly nonPairCache = new Set<string>();
+  private readonly poolCache = new Map<string, { token0: string; token1: string }>();
+  private readonly nonPoolCache = new Set<string>();
 
   constructor(
     @InjectRepository(LogEntity)
@@ -49,7 +45,7 @@ export class UniswapV2Decoder implements ProtocolDecoder, OnModuleInit {
     const logs = await this.logRepo.find({
       where: {
         blockNumber: String(blockNumber),
-        topic0: UNISWAP_V2_SWAP_TOPIC,
+        topic0: UNISWAP_V3_SWAP_TOPIC,
       },
       order: { logIndex: 'ASC' },
     });
@@ -59,17 +55,30 @@ export class UniswapV2Decoder implements ProtocolDecoder, OnModuleInit {
     const inserts: Partial<DexSwapEntity>[] = [];
 
     for (const log of logs) {
+      // V3 Swap: topics = [sig, sender, recipient]
       if (!log.topic1 || !log.topic2) continue;
 
-      // Get token0/token1 for this pair
-      const pair = await this.getPairInfo(log.address, blockNumber);
-      if (!pair) continue;
+      const pool = await this.getPoolInfo(log.address, blockNumber);
+      if (!pool) continue;
 
       try {
+        // Data: int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick
         const decoded = AbiCoder.defaultAbiCoder().decode(
-          ['uint256', 'uint256', 'uint256', 'uint256'],
+          ['int256', 'int256', 'uint160', 'uint128', 'int24'],
           log.data,
         );
+
+        const amount0 = decoded[0] as bigint;
+        const amount1 = decoded[1] as bigint;
+
+        // V3 uses signed amounts:
+        //   positive = tokens flowing INTO the pool (user pays)
+        //   negative = tokens flowing OUT of the pool (user receives)
+        // Map to V2-style in/out columns:
+        const amount0In = amount0 > 0n ? amount0.toString() : '0';
+        const amount0Out = amount0 < 0n ? (-amount0).toString() : '0';
+        const amount1In = amount1 > 0n ? amount1.toString() : '0';
+        const amount1Out = amount1 < 0n ? (-amount1).toString() : '0';
 
         inserts.push({
           protocolName: PROTOCOL_NAME,
@@ -79,16 +88,16 @@ export class UniswapV2Decoder implements ProtocolDecoder, OnModuleInit {
           logIndex: log.logIndex,
           senderAddress: `0x${log.topic1.slice(-40)}`.toLowerCase(),
           toAddress: `0x${log.topic2.slice(-40)}`.toLowerCase(),
-          token0Address: pair.token0,
-          token1Address: pair.token1,
-          amount0In: decoded[0].toString(),
-          amount1In: decoded[1].toString(),
-          amount0Out: decoded[2].toString(),
-          amount1Out: decoded[3].toString(),
+          token0Address: pool.token0,
+          token1Address: pool.token1,
+          amount0In,
+          amount1In,
+          amount0Out,
+          amount1Out,
         });
       } catch {
         this.logger.warn(
-          `Failed to decode Swap ${log.transactionHash}:${log.logIndex}`,
+          `Failed to decode V3 Swap ${log.transactionHash}:${log.logIndex}`,
         );
       }
     }
@@ -101,11 +110,9 @@ export class UniswapV2Decoder implements ProtocolDecoder, OnModuleInit {
         .values(inserts)
         .orIgnore()
         .execute();
-    }
 
-    if (inserts.length > 0) {
       this.logger.debug(
-        `Block ${blockNumber}: decoded ${inserts.length} Uniswap V2 swaps`,
+        `Block ${blockNumber}: decoded ${inserts.length} Uniswap V3 swaps`,
       );
     }
 
@@ -123,57 +130,49 @@ export class UniswapV2Decoder implements ProtocolDecoder, OnModuleInit {
       .execute();
   }
 
-  /**
-   * Get token0/token1 for a pair address.
-   * Check in-memory cache → DB → RPC probe.
-   */
-  private async getPairInfo(
-    pairAddress: string,
+  private async getPoolInfo(
+    poolAddress: string,
     blockNumber: number,
   ): Promise<{ token0: string; token1: string } | null> {
-    const normalized = pairAddress.toLowerCase();
+    const normalized = poolAddress.toLowerCase();
 
-    // In-memory cache
-    const cached = this.pairCache.get(normalized);
+    const cached = this.poolCache.get(normalized);
     if (cached) return cached;
 
-    // DB cache — check before nonPairCache so newly-registered pairs are found
+    // DB cache (reuse dex_pairs) — check before nonPoolCache so newly-registered pools are found
     const existing = await this.pairRepo.findOne({
       where: { pairAddress: normalized },
     });
     if (existing) {
       const info = { token0: existing.token0Address, token1: existing.token1Address };
-      this.pairCache.set(normalized, info);
+      this.poolCache.set(normalized, info);
       return info;
     }
 
-    // Only check nonPairCache after DB miss
-    if (this.nonPairCache.has(normalized)) return null;
+    // Only check nonPoolCache after DB miss
+    if (this.nonPoolCache.has(normalized)) return null;
 
-    // RPC probe
     if (!this.provider) {
-      this.nonPairCache.add(normalized);
+      this.nonPoolCache.add(normalized);
       return null;
     }
 
     try {
-      const contract = new Contract(normalized, UNISWAP_V2_PAIR_ABI, this.provider);
+      const contract = new Contract(normalized, UNISWAP_V3_POOL_ABI, this.provider);
       const [token0, token1] = await Promise.all([
         contract.token0() as Promise<string>,
         contract.token1() as Promise<string>,
       ]);
-
       const t0 = token0.toLowerCase();
       const t1 = token1.toLowerCase();
 
+      let fee: number | null = null;
       let factory: string | null = null;
       try {
+        fee = Number(await contract.fee());
         factory = ((await contract.factory()) as string).toLowerCase();
-      } catch {
-        // factory() may not exist on all pair-like contracts
-      }
+      } catch {}
 
-      // Persist pair
       await this.pairRepo.upsert(
         {
           pairAddress: normalized,
@@ -186,23 +185,22 @@ export class UniswapV2Decoder implements ProtocolDecoder, OnModuleInit {
         ['pairAddress'],
       );
 
-      // Persist as protocol contract
       await this.contractRepo.upsert(
         {
           address: normalized,
           protocolName: PROTOCOL_NAME,
-          contractType: 'PAIR',
-          metadataJson: { token0: t0, token1: t1, factory } as any,
+          contractType: 'POOL',
+          metadataJson: { token0: t0, token1: t1, fee, factory } as any,
           discoveredAtBlock: String(blockNumber),
         },
         ['address'],
       );
 
       const info = { token0: t0, token1: t1 };
-      this.pairCache.set(normalized, info);
+      this.poolCache.set(normalized, info);
       return info;
     } catch {
-      this.nonPairCache.add(normalized);
+      this.nonPoolCache.add(normalized);
       return null;
     }
   }

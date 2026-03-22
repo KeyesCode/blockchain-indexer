@@ -26,6 +26,7 @@ import { DecodeProcessor } from './processors/decode-processor';
 import { NftMetadataProcessor } from './processors/nft-metadata-processor';
 import { ProtocolRegistryService } from './protocols/protocol-registry.service';
 import { UniswapV2Decoder } from './protocols/uniswap-v2/uniswap-v2.decoder';
+import { UniswapV3Decoder } from './protocols/uniswap-v3/uniswap-v3.decoder';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { UniswapV2Decoder } from './protocols/uniswap-v2/uniswap-v2.decoder';
     NftMetadataProcessor,
     ProtocolRegistryService,
     UniswapV2Decoder,
+    UniswapV3Decoder,
   ],
   exports: [Erc20TransferDecoderService, NftTransferDecoderService, TokenMetadataService, NftMetadataService, ProtocolRegistryService],
 })

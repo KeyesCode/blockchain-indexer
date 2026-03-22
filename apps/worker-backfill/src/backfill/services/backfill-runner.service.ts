@@ -32,6 +32,7 @@ import { PartitionManagerService } from '@app/db/services/partition-manager.serv
 import { Contract, JsonRpcProvider } from 'ethers';
 
 const UNISWAP_V2_SWAP_TOPIC = '0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822';
+const UNISWAP_V3_SWAP_TOPIC = '0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67';
 const UNISWAP_V2_PAIR_ABI = [
   'function token0() view returns (address)',
   'function token1() view returns (address)',
@@ -557,12 +558,55 @@ export class BackfillRunnerService {
             // Skip unparseable swap logs
           }
         }
+
+        // ── Protocol decoding: Uniswap V3 Swaps ──
+        for (const log of receipt.logs) {
+          const sv3 = log.topics[0]?.toLowerCase() ?? null;
+          if (sv3 !== UNISWAP_V3_SWAP_TOPIC) continue;
+          if (!log.topics[1] || !log.topics[2]) continue;
+
+          const pool = await this.getPairInfo(normalizeAddress(log.address), blockNumber);
+          if (!pool) continue;
+
+          try {
+            const decoded = AbiCoder.defaultAbiCoder().decode(
+              ['int256', 'int256', 'uint160', 'uint128', 'int24'],
+              log.data,
+            );
+            const amt0 = decoded[0] as bigint;
+            const amt1 = decoded[1] as bigint;
+
+            await this.swapRepo
+              .createQueryBuilder()
+              .insert()
+              .into(DexSwapEntity)
+              .values({
+                protocolName: 'UNISWAP_V3',
+                pairAddress: normalizeAddress(log.address),
+                transactionHash: normalizeHash(log.transactionHash),
+                blockNumber: String(log.blockNumber),
+                logIndex: log.logIndex,
+                senderAddress: topicToAddress(log.topics[1]),
+                toAddress: topicToAddress(log.topics[2]),
+                token0Address: pool.token0,
+                token1Address: pool.token1,
+                amount0In: amt0 > 0n ? amt0.toString() : '0',
+                amount1In: amt1 > 0n ? amt1.toString() : '0',
+                amount0Out: amt0 < 0n ? (-amt0).toString() : '0',
+                amount1Out: amt1 < 0n ? (-amt1).toString() : '0',
+              })
+              .orIgnore()
+              .execute();
+          } catch {
+            // Skip unparseable V3 swap logs
+          }
+        }
       }
     }
   }
 
   /**
-   * Get token0/token1 for a Uniswap V2 pair.
+   * Get token0/token1 for a Uniswap V2/V3 pair/pool.
    * Cache → DB → RPC probe.
    */
   private async getPairInfo(

@@ -169,11 +169,15 @@ Separate:
 - [x] API: GET /addresses/:address/approvals (paginated history)
 - [x] API: GET /addresses/:address/allowances (current state)
 
-### Uniswap V3 — NEXT
-- [ ] Swap(address,address,int256,int256,uint160,uint128,int24) decoding
-- [ ] Pool detection via factory
-- [ ] Reuse dex_swaps with protocol_name = UNISWAP_V3
-- [ ] Liquidity position tracking (optional)
+### Uniswap V3 — COMPLETE
+- [x] Swap(address,address,int256,int256,uint160,uint128,int24) decoding
+- [x] Pool detection: memory cache → DB (dex_pairs) → RPC probe (token0/token1/fee/factory)
+- [x] Reuse dex_swaps with protocol_name = UNISWAP_V3
+- [x] Signed amount mapping: positive → amountIn, negative → amountOut
+- [x] Self-registering via ProtocolDecoder + onModuleInit
+- [x] Inline decode in backfill runner
+- [x] Idempotent (orIgnore on unique tx_hash + log_index)
+- [ ] Liquidity position tracking (optional, future)
 
 ### NFT Marketplaces (Seaport / Blur)
 - [ ] Order fulfillment decoding
@@ -291,8 +295,8 @@ Do NOT include:
 1. ~~Core stability (Phase 1)~~ DONE
 2. ~~NFT support (Phase 2)~~ DONE
 3. ~~Protocol framework + Uniswap V2 (Phase 3)~~ DONE
-4. ~~ERC-20 Approvals~~ DONE + **Uniswap V3** ← NEXT
-5. NFT marketplaces
+4. ~~ERC-20 Approvals + Uniswap V3~~ DONE
+5. **NFT marketplaces** ← NEXT
 6. Lending protocols
 7. Bridges
 8. Advanced protocols

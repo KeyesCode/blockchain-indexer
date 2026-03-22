@@ -36,6 +36,7 @@ import { SummaryService } from '../libs/db/src/services/summary.service';
 import { PartitionManagerService } from '../libs/db/src/services/partition-manager.service';
 import { ProtocolRegistryService } from '../apps/worker-decode/src/decode/protocols/protocol-registry.service';
 import { UniswapV2Decoder } from '../apps/worker-decode/src/decode/protocols/uniswap-v2/uniswap-v2.decoder';
+import { UniswapV3Decoder } from '../apps/worker-decode/src/decode/protocols/uniswap-v3/uniswap-v3.decoder';
 import { BlocksController } from '../apps/api/src/blocks/blocks.controller';
 import { BlocksService } from '../apps/api/src/blocks/blocks.service';
 import { TransactionsController } from '../apps/api/src/transactions/transactions.controller';
@@ -118,6 +119,7 @@ describe('Phase 1: End-to-end system validation', () => {
         NftReconciliationService,
         ProtocolRegistryService,
         UniswapV2Decoder,
+        UniswapV3Decoder,
         SummaryService,
         PartitionManagerService,
         // API services
@@ -173,9 +175,9 @@ describe('Phase 1: End-to-end system validation', () => {
     reconciliationService = module.get(NftReconciliationService);
     protocolRegistry = module.get(ProtocolRegistryService);
 
-    // Manually trigger onModuleInit for the decoder (test module doesn't call lifecycle hooks)
-    const uniswapDecoder = module.get(UniswapV2Decoder);
-    uniswapDecoder.onModuleInit();
+    // Manually trigger onModuleInit for protocol decoders (test module doesn't call lifecycle hooks)
+    module.get(UniswapV2Decoder).onModuleInit();
+    module.get(UniswapV3Decoder).onModuleInit();
 
     blocksController = module.get(BlocksController);
     transactionsController = module.get(TransactionsController);
@@ -1505,6 +1507,108 @@ describe('Phase 1: End-to-end system validation', () => {
       for (const a of remaining) {
         expect(Number(a.blockNumber)).toBeLessThanOrEqual(5);
       }
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────
+  // 16. Uniswap V3 swap decoding
+  // ────────────────────────────────────────────────────────────────
+  describe('Uniswap V3 swap decoding', () => {
+    beforeEach(async () => {
+      // Ingest blocks 1-14 (block 7 and 14 have V3 Swap logs)
+      await blockSyncService.syncNextBatch(14);
+      for (let bn = 1; bn <= 14; bn++) {
+        await receiptSyncService.syncReceiptsForBlock(bn);
+      }
+
+      // Pre-populate V3 pool info (no RPC in test)
+      await pairRepo.upsert(
+        {
+          pairAddress: '0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640',
+          protocolName: 'UNISWAP_V3',
+          token0Address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+          token1Address: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
+          factoryAddress: null,
+          discoveredAtBlock: '1',
+        },
+        ['pairAddress'],
+      );
+    });
+
+    it('should register V3 decoder in the registry', () => {
+      const decoders = protocolRegistry.getDecoders();
+      expect(decoders.some((d) => d.protocol === 'UNISWAP_V3')).toBe(true);
+    });
+
+    it('should decode V3 Swap events into dex_swaps', async () => {
+      let total = 0;
+      for (let bn = 1; bn <= 14; bn++) {
+        total += await protocolRegistry.decodeBlock(bn);
+      }
+
+      const v3Swaps = await swapRepo.find({
+        where: { protocolName: 'UNISWAP_V3' },
+      });
+      expect(v3Swaps.length).toBeGreaterThan(0);
+
+      for (const swap of v3Swaps) {
+        expect(swap.protocolName).toBe('UNISWAP_V3');
+        expect(swap.pairAddress).toBe('0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640');
+        // V3 signed amount mapping: amount0=500000 (positive → amount0In)
+        expect(BigInt(swap.amount0In)).toBe(500000n);
+        expect(swap.amount0Out).toBe('0');
+        // amount1=-250000000000000 (negative → amount1Out)
+        expect(swap.amount1In).toBe('0');
+        expect(BigInt(swap.amount1Out)).toBe(250000000000000n);
+      }
+    });
+
+    it('should keep V2 and V3 swaps separate by protocol_name', async () => {
+      // Pre-populate V2 pair too
+      await pairRepo.upsert(
+        {
+          pairAddress: '0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc',
+          protocolName: 'UNISWAP_V2',
+          token0Address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+          token1Address: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
+          factoryAddress: null,
+          discoveredAtBlock: '1',
+        },
+        ['pairAddress'],
+      );
+
+      for (let bn = 1; bn <= 14; bn++) {
+        await protocolRegistry.decodeBlock(bn);
+      }
+
+      const v2Count = await swapRepo.count({ where: { protocolName: 'UNISWAP_V2' } });
+      const v3Count = await swapRepo.count({ where: { protocolName: 'UNISWAP_V3' } });
+
+      expect(v2Count).toBeGreaterThan(0);
+      expect(v3Count).toBeGreaterThan(0);
+
+      // Different pool addresses
+      const v2Swaps = await swapRepo.find({ where: { protocolName: 'UNISWAP_V2' } });
+      const v3Swaps = await swapRepo.find({ where: { protocolName: 'UNISWAP_V3' } });
+      const v2Addrs = new Set(v2Swaps.map((s) => s.pairAddress));
+      const v3Addrs = new Set(v3Swaps.map((s) => s.pairAddress));
+      for (const addr of v3Addrs) {
+        expect(v2Addrs.has(addr)).toBe(false);
+      }
+    });
+
+    it('should be idempotent for V3 swaps', async () => {
+      for (let bn = 1; bn <= 14; bn++) {
+        await protocolRegistry.decodeBlock(bn);
+      }
+      const before = await swapRepo.count({ where: { protocolName: 'UNISWAP_V3' } });
+
+      for (let bn = 1; bn <= 14; bn++) {
+        await protocolRegistry.decodeBlock(bn);
+      }
+      const after = await swapRepo.count({ where: { protocolName: 'UNISWAP_V3' } });
+
+      expect(after).toBe(before);
     });
   });
 });
