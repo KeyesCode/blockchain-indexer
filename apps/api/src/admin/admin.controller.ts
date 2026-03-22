@@ -51,12 +51,14 @@ export class AdminController {
         this.transferRepo.count(),
       ]);
 
-    const latestBlock = await this.blockRepo.findOne({
+    const [latestBlock] = await this.blockRepo.find({
       order: { number: 'DESC' },
+      take: 1,
     });
 
-    const earliestBlock = await this.blockRepo.findOne({
+    const [earliestBlock] = await this.blockRepo.find({
       order: { number: 'ASC' },
+      take: 1,
     });
 
     const reorgCount = await this.reorgRepo.count();
@@ -98,8 +100,9 @@ export class AdminController {
       this.transferRepo.count(),
     ]);
 
-    const latestBlock = await this.blockRepo.findOne({
+    const [latestBlock] = await this.blockRepo.find({
       order: { number: 'DESC' },
+      take: 1,
     });
 
     const checkpoints = await this.checkpointRepo.find();

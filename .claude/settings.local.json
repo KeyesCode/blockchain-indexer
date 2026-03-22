@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(docker compose:*)",
-      "Bash(yarn:*)"
+      "Bash(yarn:*)",
+      "Bash(curl -s http://localhost:3000/admin/status)",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl:*)",
+      "WebFetch(domain:api.etherscan.io)"
     ]
   }
 }
