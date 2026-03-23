@@ -14,11 +14,13 @@ export class BlocksService {
     private readonly txRepo: Repository<TransactionEntity>,
   ) {}
 
-  async getLatestBlocks(take: number) {
-    return this.blockRepo.find({
+  async getLatestBlocks(take: number, skip = 0) {
+    const [items, total] = await this.blockRepo.findAndCount({
       order: { number: 'DESC' },
       take,
+      skip,
     });
+    return { items, total, limit: take, offset: skip };
   }
 
   async getBlock(numberOrHash: string) {

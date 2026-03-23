@@ -1,13 +1,22 @@
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { formatNumber, timeAgo, truncateHash } from '@/lib/utils';
+import Pagination from '@/components/Pagination';
 
 export const dynamic = 'force-dynamic';
 
-export default async function BlocksPage() {
-  let blocks;
+export default async function BlocksPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ offset?: string }>;
+}) {
+  const { offset: offsetStr = '0' } = await searchParams;
+  const offset = Number(offsetStr);
+  const limit = 25;
+
+  let data;
   try {
-    blocks = await api.getLatestBlocks(50);
+    data = await api.getLatestBlocks(limit, offset);
   } catch {
     return (
       <div className="text-center py-20">
@@ -17,9 +26,11 @@ export default async function BlocksPage() {
     );
   }
 
+  const { items: blocks, total } = data;
+
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Latest Blocks</h1>
+      <h1 className="text-2xl font-bold mb-6">Blocks</h1>
       <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-800 text-gray-400">
@@ -55,6 +66,11 @@ export default async function BlocksPage() {
             ))}
           </tbody>
         </table>
+        {total > limit && (
+          <div className="px-4">
+            <Pagination basePath="/blocks" currentOffset={offset} limit={limit} total={total} />
+          </div>
+        )}
       </div>
     </div>
   );

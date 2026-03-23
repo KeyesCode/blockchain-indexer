@@ -1,9 +1,9 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { BlocksService } from './blocks.service';
-import { LimitQueryDto } from '../common/pagination';
+import { PaginationQueryDto } from '../common/pagination';
 import { BlockIdentifierParamDto } from '../common/params';
-import { BlockDto } from '../common/dto';
+import { BlockDto, ApiPaginatedResponse } from '../common/dto';
 import { BlockDetailDto } from './dto/block-detail.dto';
 
 @ApiTags('Blocks')
@@ -12,10 +12,10 @@ export class BlocksController {
   constructor(private readonly blocksService: BlocksService) {}
 
   @Get('latest')
-  @ApiOperation({ summary: 'Get latest indexed blocks' })
-  @ApiOkResponse({ type: [BlockDto] })
-  async getLatestBlocks(@Query() query: LimitQueryDto) {
-    return this.blocksService.getLatestBlocks(query.limit!);
+  @ApiOperation({ summary: 'Get latest indexed blocks (paginated)' })
+  @ApiPaginatedResponse(BlockDto)
+  async getLatestBlocks(@Query() query: PaginationQueryDto) {
+    return this.blocksService.getLatestBlocks(query.limit!, query.offset!);
   }
 
   @Get(':numberOrHash')

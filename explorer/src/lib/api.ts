@@ -67,7 +67,8 @@ export interface SearchResult {
 // API calls
 export const api = {
   getStatus: () => fetchApi<IndexerStatus>('/admin/status'),
-  getLatestBlocks: (limit = 25) => fetchApi<Block[]>(`/blocks/latest?limit=${limit}`),
+  getLatestBlocks: (limit = 25, offset = 0) =>
+    fetchApi<{ items: Block[]; total: number; limit: number; offset: number }>(`/blocks/latest?limit=${limit}&offset=${offset}`),
   getBlock: (id: string) => fetchApi<Block & { transactions: Transaction[] }>(`/blocks/${id}`),
   getTransaction: (hash: string) => fetchApi<TransactionDetail>(`/transactions/${hash}`),
   getAddress: (address: string) => fetchApi<any>(`/addresses/${address}`),
@@ -87,12 +88,14 @@ export const api = {
     fetchApi<any>(`/addresses/${address}/nft-sales?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
   getAddressLending: (address: string, limit = 25, cursor?: string) =>
     fetchApi<any>(`/addresses/${address}/lending?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
-  getTokens: () => fetchApi<any[]>('/tokens'),
-  getToken: (address: string) => fetchApi<any>(`/tokens/${address}`),
+  getTokens: (limit = 25, offset = 0) =>
+    fetchApi<{ items: any[]; total: number; limit: number; offset: number }>(`/tokens?limit=${limit}&offset=${offset}`),
+  getToken: (address: string, limit = 25, offset = 0) =>
+    fetchApi<any>(`/tokens/${address}?limit=${limit}&offset=${offset}`),
   getTokenTransfers: (address: string, limit = 25, offset = 0) =>
     fetchApi<any>(`/tokens/${address}/transfers?limit=${limit}&offset=${offset}`),
-  getNftCollection: (address: string) =>
-    fetchApi<any>(`/nfts/collections/${address}/transfers?limit=25`),
+  getNftCollection: (address: string, limit = 25, cursor?: string) =>
+    fetchApi<any>(`/nfts/collections/${address}/transfers?limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`),
   getNftToken: (address: string, tokenId: string) =>
     fetchApi<any>(`/nfts/collections/${address}/tokens/${tokenId}`),
   search: (q: string) => fetchApi<SearchResult>(`/search?q=${encodeURIComponent(q)}`),

@@ -23,11 +23,15 @@ export class TokensService {
     private readonly allowanceRepo: Repository<TokenAllowanceEntity>,
   ) {}
 
-  async listTokens(take: number) {
-    return this.tokenRepo.find({ take });
+  async listTokens(take: number, skip = 0) {
+    const [items, total] = await this.tokenRepo.findAndCount({
+      take,
+      skip,
+    });
+    return { items, total, limit: take, offset: skip };
   }
 
-  async getToken(address: string) {
+  async getToken(address: string, transferLimit = 25, transferOffset = 0) {
     const normalized = address.toLowerCase();
 
     const token = await this.tokenRepo.findOne({
@@ -38,13 +42,14 @@ export class TokensService {
       throw new NotFoundException(`Token ${address} not found`);
     }
 
-    const recentTransfers = await this.transferRepo.find({
+    const [recentTransfers, transferTotal] = await this.transferRepo.findAndCount({
       where: { tokenAddress: normalized },
       order: { blockNumber: 'DESC', logIndex: 'DESC' },
-      take: 25,
+      take: transferLimit,
+      skip: transferOffset,
     });
 
-    return { token, recentTransfers };
+    return { token, recentTransfers, transferTotal };
   }
 
   async getTokenTransfers(

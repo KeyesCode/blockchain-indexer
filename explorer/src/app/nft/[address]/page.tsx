@@ -4,12 +4,19 @@ import { truncateHash, formatNumber } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-export default async function NftCollectionPage({ params }: { params: Promise<{ address: string }> }) {
+export default async function NftCollectionPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ address: string }>;
+  searchParams: Promise<{ cursor?: string }>;
+}) {
   const { address } = await params;
+  const { cursor } = await searchParams;
 
   let data;
   try {
-    data = await api.getNftCollection(address);
+    data = await api.getNftCollection(address, 25, cursor);
   } catch {
     return (
       <div className="text-center py-20">
@@ -32,7 +39,7 @@ export default async function NftCollectionPage({ params }: { params: Promise<{ 
       {transfers.length > 0 ? (
         <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
           <div className="p-4 border-b border-gray-800 font-bold">
-            Recent Transfers
+            Transfers
           </div>
           <table className="w-full text-sm">
             <thead className="bg-gray-800 text-gray-400">
@@ -82,9 +89,21 @@ export default async function NftCollectionPage({ params }: { params: Promise<{ 
               ))}
             </tbody>
           </table>
+          {data.nextCursor && (
+            <div className="px-4 py-3 border-t border-gray-800">
+              <Link
+                href={`/nft/${address}?cursor=${data.nextCursor}`}
+                className="px-3 py-1 bg-gray-800 border border-gray-700 rounded text-sm hover:bg-gray-700"
+              >
+                Next Page
+              </Link>
+            </div>
+          )}
         </div>
       ) : (
-        <p className="text-gray-400">No transfers found for this collection.</p>
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-8 text-center text-gray-400">
+          No transfers found for this collection.
+        </div>
       )}
     </div>
   );

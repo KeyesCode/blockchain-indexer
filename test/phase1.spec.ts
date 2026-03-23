@@ -611,9 +611,18 @@ describe('Phase 1: End-to-end system validation', () => {
       expect((result.result as any).address).toBe(tx!.fromAddress);
     });
 
-    it('should return none for unknown query', async () => {
+    it('should return address for unknown but valid address', async () => {
       const result = await searchController.search({
         q: '0x0000000000000000000000000000000000ffffff',
+      } as any);
+
+      expect(result.type).toBe('address');
+      expect((result.result as any).address).toBe('0x0000000000000000000000000000000000ffffff');
+    });
+
+    it('should return none for invalid query', async () => {
+      const result = await searchController.search({
+        q: 'not_a_valid_search_term',
       } as any);
 
       expect(result.type).toBe('none');
@@ -700,12 +709,13 @@ describe('Phase 1: End-to-end system validation', () => {
     });
 
     it('should return latest blocks with limit', async () => {
-      const blocks = await blocksController.getLatestBlocks({ limit: 5 } as any);
+      const result = await blocksController.getLatestBlocks({ limit: 5, offset: 0 } as any);
 
-      expect(blocks.length).toBe(5);
-      for (let i = 1; i < blocks.length; i++) {
-        expect(Number(blocks[i].number)).toBeLessThan(
-          Number(blocks[i - 1].number),
+      expect(result.items.length).toBe(5);
+      expect(result.total).toBeGreaterThanOrEqual(5);
+      for (let i = 1; i < result.items.length; i++) {
+        expect(Number(result.items[i].number)).toBeLessThan(
+          Number(result.items[i - 1].number),
         );
       }
     });

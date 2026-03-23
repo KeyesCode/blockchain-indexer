@@ -10,10 +10,12 @@ export default async function HomePage() {
   let blocks;
 
   try {
-    [status, blocks] = await Promise.all([
+    const [statusResult, blocksResult] = await Promise.all([
       api.getStatus(),
       api.getLatestBlocks(10),
     ]);
+    status = statusResult;
+    blocks = blocksResult.items;
   } catch {
     return (
       <div className="text-center py-20">
